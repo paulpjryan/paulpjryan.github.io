@@ -59,7 +59,7 @@ var RepoBox = React.createClass({
 	render: function() {
 		return (
 			<div className="repoBox">
-				<h3>Projects</h3>
+				<h2 text-decoration="underline">Projects</h2>
 				<RepoList data={this.state.data} />
 			</div>
 		);
