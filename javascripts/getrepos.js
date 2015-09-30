@@ -41,7 +41,7 @@ var RepoBox = React.createClass({
 		});*/
 		var source = 'https://api.github.com/users/paulpjryan/repos'
 		$.getJSON(source, function(result) {
-			console.log('Got result of length' + result.length);
+			console.log('Got result of length ' + result.length);
 		    if (this.isMounted()) {
 		        this.setState({
 		        	data: result
@@ -64,3 +64,8 @@ var RepoBox = React.createClass({
 		);
 	}
 });
+
+React.render(
+	<RepoBox pollInterval={2000}/>,
+	document.getElementById('main_content')
+);
