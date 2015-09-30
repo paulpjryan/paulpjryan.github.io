@@ -3,8 +3,9 @@ var Repo = React.createClass({
 		return (
 				<div className="repo">
 					<h4 className="repoName">
-						{this.props.name}
+						<a href={this.props.url} target="_blank">{this.props.name}</a>
 					</h4>
+					{this.props.desc}
 				</div>
 			);
 	}
@@ -14,7 +15,7 @@ var RepoList = React.createClass({
 	render: function() {
 		var repoNodes = this.props.data.map(function (repo) {
 				return(
-					<Repo name={repo.name}>
+					<Repo name={repo.name} desc={repo.description} url={repo.html_url}>
 					</Repo>
 					);
 		});
