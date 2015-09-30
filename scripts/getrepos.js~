@@ -68,5 +68,5 @@ var RepoBox = React.createClass({
 
 React.render(
 	<RepoBox pollInterval={2000}/>,
-	document.getElementById('projects_content')
+	document.getElementById('main_content')
 );
