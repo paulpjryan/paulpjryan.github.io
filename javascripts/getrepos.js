@@ -20,7 +20,7 @@ var RepoList = React.createClass({
 				);
 		});
 		return (
-			<div className="RepoList" link="#000000" vlink="#000000" alink="#000000">
+			<div className="RepoList">
 				{repoNodes}
 			</div>
 			);
