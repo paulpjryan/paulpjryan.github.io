@@ -15,6 +15,7 @@
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="scripts/require.js"></script>
 	</head>
 
   	<body>
@@ -33,7 +34,7 @@
 	    	<!-- MAIN CONTENT -->
 	    	<div id="main_content_wrap" class="outer">
     		<section id="main_content" class="inner">
-    		<script type="text/babel" src="javascripts/getrepos.js"></script>
+    		<script type="text/babel" src="scripts/getrepos.js"></script>
         <script type="text/babel">
             var info = require('./info.json');
             console.log(info.school);
