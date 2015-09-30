@@ -41,6 +41,7 @@ var RepoBox = React.createClass({
 		});*/
 		var source = 'https://api.github.com/users/paulpjryan/repos'
 		$.getJSON(source, function(result) {
+			console.log('Got result of length' + result.length);
 		    if (this.isMounted()) {
 		        this.setState({
 		        	data: result
