@@ -36,8 +36,14 @@
     		<section id="main_content" class="inner">
     		<script type="text/babel" src="scripts/getrepos.js"></script>
         <script type="text/babel">
-            var info = require('./info.json');
-            console.log(info.school);
+            require(['./info.json'], function(info) {
+                console.log(info.school);
+            });
+
+            $.get('info.json', function(data) {
+                // do something with your data
+                console.log(data.name);
+            });
         </script>
 
 				<!--
