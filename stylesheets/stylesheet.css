@@ -300,6 +300,7 @@ Full-Width Styles
   background-attachment: fixed;
   background-size: cover;
   background-image: url("../images/ggb_header.jpg");
+  height: 400px;
   text-shadow: none;
 }
 
