@@ -307,10 +307,12 @@ Full-Width Styles
   background-position: 50% 50%;
   background-repeat: no-repeat;
   background-attachment: fixed;
+  background-position: center bottom;
   background-size: cover;
   background-image: url("../images/ggb_header.jpg");
   height: 400px;
   text-shadow: none;
+  overflow:visible; 
 }
 
 #header_wrap .inner {
