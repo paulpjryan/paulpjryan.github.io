@@ -287,13 +287,13 @@ Full-Width Styles
   border-bottom-right-radius: 2px;
 }
 
+/*broken as hell*/
 #profile_pic {
 	display: block;
 	position: absolute;
 	top:50px;
 	right:10px;
 	padding: 10px, 10px, 10px, 10px;
-	background: url('https://media.licdn.com/mpr/mpr/shrinknp_400_400/AAEAAQAAAAAAAATDAAAAJGIwYTk5ODAyLTg1ZGItNGRmZi1iZTM3LWU0NzI0ZWEzMWJiZQ.jpg') no-repeat;
 }
 
 #header_wrap {
