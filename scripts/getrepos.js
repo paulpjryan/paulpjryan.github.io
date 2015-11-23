@@ -40,7 +40,7 @@ var RepoBox = React.createClass({
 				console.error('URL', status, err.toString());
 			}.bind(this)
 		});*/
-		var source = 'https://api.github.com/users/paulpjryan/repos?sort=pushed'
+		var source = 'https://api.github.com/users/paulpjryan/repos?sort=pushed';
 		$.getJSON(source, function(result) {
 			console.log('Got result of length ' + result.length);
 		    if (this.isMounted()) {
