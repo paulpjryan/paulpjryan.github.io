@@ -262,7 +262,7 @@ catch(err) {
 
 ;
           if (!runningTests) {
-            require("paulpjryan-github-io/app")["default"].create({"name":"paulpjryan-github-io","version":"0.0.0+5873aa5f"});
+            require("paulpjryan-github-io/app")["default"].create({"name":"paulpjryan-github-io","version":"0.0.0+44e7d6cb"});
           }
         
 //# sourceMappingURL=paulpjryan-github-io.map
