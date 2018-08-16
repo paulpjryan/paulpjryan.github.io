@@ -1,3 +1,57 @@
-<h1>Hello, world! 2</h1>
+<!-- header -->
+<div class="hero">
+  <div class="hero-head">
+    <!-- Github link to project -->
+    <div class="navbar">
+      <div class="navbar-end">
+        <div class="navbar-item">
+          <a href="https://github.com/paulpjryan/paulpjryan.github.io/tree/source" class="source-link card">
+            <div class="card-content">
+              <span id="github-logo">{{fa-icon 'github'}}</span>
+              <span>View source on Github</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-body">
+    <div class="container">
+      <h1 class="title">
+        PJ Ryan
+      </h1>
+      <h2 class="subtitle">
+        Software Engineer at <a href="https://neighborly.com">Neighborly</a>
+      </h2>
+    </div>
+  </div>
+  {{!-- <div class="hero-foot">
+  </div> --}}
+</div>
 
-{{outlet}}
+<!-- TODO: tabs if not mobile, drawer if mobile? -->
+<nav class="tabs is-centered is-boxed">
+    <div class="container">
+      <ul>
+        {{#link-to 'index' tagName="li"}}
+          <a href="{{view.href}}">Home</a>
+        {{/link-to}}
+
+        {{#link-to 'about-me' tagName="li"}}
+          <a href="{{view.href}}">About me</a>
+        {{/link-to}}
+
+        {{#link-to 'projects' tagName="li"}}
+          <a href="{{view.href}}">Projects</a>
+        {{/link-to}}
+
+        {{#link-to 'links' tagName="li"}}
+          <a href="{{view.href}}">Links</a>
+        {{/link-to}}
+      </ul>
+    </div>
+  </nav>
+
+<div class="container main-content">
+  {{outlet}}
+</div>

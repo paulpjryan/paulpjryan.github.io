@@ -1,0 +1,12 @@
+<h1><u>GitHub Projects</u></h1>
+<ul>
+  {{#each model as |project|}}
+    <li>
+      <span>
+        <a href="{{project.html_url}}">{{project.name}}</a> 
+        - {{project.description}}
+        <span class="is-size-7 has-text-grey-light">(Last updated {{format-date project.pushed_at}})</span>
+      </span>
+    </li>
+  {{/each}}
+</ul>

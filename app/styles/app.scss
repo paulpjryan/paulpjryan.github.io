@@ -1,0 +1,31 @@
+@import 'bulma';
+@import './routes/about-me';
+@import './routes/links';
+
+.main_content {
+  padding-top: 15px;
+}
+
+.source-link {
+  .card-content {
+    padding: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  font-size: 10px;
+  text-align: center;
+  span {
+    vertical-align: middle;
+  }
+  #github-logo {
+    font-size: 30px;
+  }
+}
+
+h1 u {
+  @extend .has-text-weight-semibold;
+}
+
+.tabs li.active {
+  @extend .is-active;
+}
