@@ -89,9 +89,12 @@ button{cursor:pointer}
 .needle .tick{position:absolute;top:8px;bottom:8px;width:2px;margin-left:-1px;background:var(--muted);opacity:.35;border-radius:1px}
 .needle .tick.last{top:3px;bottom:3px;width:4px;margin-left:-2px;opacity:1}
 .needle-scale{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
-.lastvol{display:flex;gap:22px;flex-wrap:wrap}
-.lastvol div{display:flex;flex-direction:column}
-.lastvol .num{font-size:1.15rem}
+.lastvol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px}
+.lastvol div{display:flex;flex-direction:column;min-width:0}
+.lastvol .num{font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lastvol .sub{font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.5em}
+.big{flex-wrap:nowrap!important;min-height:4.6rem}
+.big .w{white-space:nowrap}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 18px;align-content:start}
 @media (max-width:1040px) and (min-width:821px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:620px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -235,7 +238,7 @@ td:first-child{font-family:var(--f-body)}
     <div class="lastvol">
       <div><span class="label">Level</span><span class="num" id="lastDb">−18.2 dBFS</span></div>
       <div><span class="label">vs. average</span><span class="num" id="lastRel">+0.6 dB</span></div>
-      <div><span class="label">Length</span><span class="num" id="lastLen">—</span></div>
+      <div><span class="label">Length</span><span class="num" id="lastLen">—</span><span class="sub" id="lastLenSub"></span></div>
       <div><span class="label">Landed on</span><span class="num" id="lastPos">2 &amp;</span></div>
     </div>
   </div>
@@ -630,10 +633,8 @@ function posName(h){
 // share of its slot a strum sounded (0–100); a strum that rang until the next one counts as 100
 function ringPct(h){ if (isNaN(h.lenMs)) return NaN; return h.cut ? 100 : Math.min(100, h.lenMs/h.slotMs*100); }
 const measured = arr => arr.filter(h => !isNaN(h.lenMs));
-function lenText(h){
-  if (!h || isNaN(h.lenMs)) return '—';
-  return h.cut ? `${Math.round(h.lenMs)} ms · rang through` : `${Math.round(h.lenMs)} ms · ${Math.round(ringPct(h))}% of slot`;
-}
+function lenText(h){ return (!h || isNaN(h.lenMs)) ? '—' : Math.round(h.lenMs) + ' ms'; }
+function lenSub(h){ if (!h || isNaN(h.lenMs)) return 'measuring…'; return h.cut ? 'rang into next strum' : Math.round(ringPct(h)) + '% of slot'; }
 function setChip(el, text, cls){ el.textContent = text; el.className = 'chip ' + cls; }
 
 function render(){
@@ -693,11 +694,11 @@ function render(){
     $('lastWord').className = 'w ' + $('lastOff').className.slice(2);
     $('lastDb').textContent = fmt(last.db) + ' dBFS';
     $('lastRel').textContent = isNaN(vAvg) ? '—' : fmtS(last.db - vAvg) + ' dB';
-    $('lastLen').textContent = lenText(last);
+    $('lastLen').textContent = lenText(last); $('lastLenSub').textContent = lenSub(last);
     $('lastPos').textContent = posName(last) + (last.grid>1 ? (last.down?' · down':' · up') : '');
   } else {
     $('lastOff').textContent = '—'; $('lastOff').className='v'; $('lastWord').textContent = 'waiting for a strum'; $('lastWord').className='w c-muted';
-    $('lastDb').textContent = '—'; $('lastRel').textContent = '—'; $('lastPos').textContent = '—'; $('lastLen').textContent = '—';
+    $('lastDb').textContent = '—'; $('lastRel').textContent = '—'; $('lastPos').textContent = '—'; $('lastLen').textContent = '—'; $('lastLenSub').textContent = '';
   }
   drawNeedle();
   drawTiming(); drawVolume(); drawLength(); renderStrokes(w); renderBeats(w);
