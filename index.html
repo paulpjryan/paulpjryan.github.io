@@ -92,9 +92,11 @@ button{cursor:pointer}
 .lastvol{display:flex;gap:22px;flex-wrap:wrap}
 .lastvol div{display:flex;flex-direction:column}
 .lastvol .num{font-size:1.15rem}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 20px;align-content:start}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 18px;align-content:start}
+@media (max-width:1040px) and (min-width:821px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:620px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .stat{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:10px}
-.stat .num{font-size:1.55rem;font-weight:500;line-height:1.2}
+.stat .num{white-space:nowrap;font-size:1.35rem;font-weight:500;line-height:1.2}
 .chip{display:inline-block;align-self:flex-start;font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:999px;
   background:color-mix(in srgb,currentColor 14%,transparent)}
 .c-ok{color:var(--ok)} .c-early{color:var(--early)} .c-late{color:var(--late)} .c-muted{color:var(--muted)}
@@ -115,6 +117,8 @@ button{cursor:pointer}
 canvas{display:block;width:100%}
 #tchart{height:200px}
 #vchart{height:140px}
+#lchart{height:140px}
+.paused-note{color:var(--muted);font-style:italic;list-style:none;margin-left:-1.1em}
 
 /* Lower */
 .beats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
@@ -231,6 +235,7 @@ td:first-child{font-family:var(--f-body)}
     <div class="lastvol">
       <div><span class="label">Level</span><span class="num" id="lastDb">−18.2 dBFS</span></div>
       <div><span class="label">vs. average</span><span class="num" id="lastRel">+0.6 dB</span></div>
+      <div><span class="label">Length</span><span class="num" id="lastLen">—</span></div>
       <div><span class="label">Landed on</span><span class="num" id="lastPos">2 &amp;</span></div>
     </div>
   </div>
@@ -244,7 +249,9 @@ td:first-child{font-family:var(--f-body)}
     <div class="stat"><span class="label">Timing spread (SD)</span><span class="num" id="sSd">9.4 ms</span><span class="chip c-ok" id="sSdC">Solid</span></div>
     <div class="stat"><span class="label">Inside ±20 ms</span><span class="num" id="sIn">84%</span><span class="chip c-muted" id="sInC">27 of 32</span></div>
     <div class="stat"><span class="label">Volume spread (SD)</span><span class="num" id="sVsd">2.4 dB</span><span class="chip c-ok" id="sVsdC">Fair</span></div>
-    <div class="stat"><span class="label">Average level</span><span class="num" id="sVavg">−19.8 dBFS</span><span class="chip c-muted" id="sVavgC">range 8.1 dB</span></div>
+    <div class="stat"><span class="label">Average level (dBFS)</span><span class="num" id="sVavg">−19.8 dBFS</span><span class="chip c-muted" id="sVavgC">range 8.1 dB</span></div>
+    <div class="stat"><span class="label">Note length</span><span class="num" id="sL">—</span><span class="chip c-muted" id="sLC">—</span></div>
+    <div class="stat"><span class="label">Length spread (SD)</span><span class="num" id="sLsd">—</span><span class="chip c-muted" id="sLsdC">—</span></div>
     <div class="stat"><span class="label">Strums counted</span><span class="num" id="sN">48</span><span class="chip c-muted" id="sNC">session</span></div>
   </div>
 </section>
@@ -275,6 +282,19 @@ td:first-child{font-family:var(--f-body)}
   <canvas id="vchart" aria-label="Loudness of each strum relative to the average"></canvas>
 </section>
 
+<section class="panel">
+  <div class="chart-head">
+    <h2>Note length, strum by strum</h2>
+    <div class="legend">
+      <span><i class="sq" style="color:var(--ink)"></i>Downstroke</span>
+      <span class="c-muted"><i class="sq"></i>Upstroke</span>
+      <span class="c-muted"><i class="sq" style="opacity:.3"></i>Rang into the next strum</span>
+      <span class="c-muted">Height is the share of the slot the strum sounded</span>
+    </div>
+  </div>
+  <canvas id="lchart" aria-label="How long each strum sounded, as a share of its slot"></canvas>
+</section>
+
 <section class="panel" aria-labelledby="beatsH">
   <div class="chart-head">
     <h2 id="beatsH">Beat by beat</h2>
@@ -290,7 +310,7 @@ td:first-child{font-family:var(--f-body)}
     <p class="hint" style="margin-top:4px">Assumes alternate strumming: on-beat subdivisions are down, the “&amp;” and “a” positions are up.</p>
     <div style="overflow-x:auto;margin-top:8px">
       <table>
-        <thead><tr><th>Stroke</th><th>Strums</th><th>Avg offset</th><th>Spread</th><th>Avg level</th></tr></thead>
+        <thead><tr><th>Stroke</th><th>Strums</th><th>Avg offset</th><th>Spread</th><th>Avg level</th><th>Ring</th></tr></thead>
         <tbody id="strokeBody"></tbody>
       </table>
     </div>
@@ -358,6 +378,9 @@ class Det {
     this.a=Math.exp(-1/(0.0015*sr)); this.b=Math.exp(-1/(0.12*sr));
     this.win=0; this.acc=0; this.n=0; this.oF=0; this.measure=Math.round(0.06*sr);
     this.lvl=0; this.lvlN=0; this.lvlEvery=Math.round(0.05*sr); this.out=[]; this.bl=Math.round(0.03*sr); this.buf=new Float32Array(this.bl); this.bi=0;
+    // note length: full-band 3 ms envelope (its own fade time is subtracted); a strum ends 20 dB below its own peak, or when the next strum starts
+    this.env=0; this.c=Math.exp(-1/(0.003*sr)); this.lag=Math.round(0.003*sr*Math.log(100)); this.track=false; this.tF=0; this.pk=0;
+    this.pkWin=Math.round(0.05*sr); this.maxLen=Math.round(2*sr); this.drop=0.01;
   }
   set(o){
     if(o.trigDb!=null) this.floor=Math.pow(10,o.trigDb/10);
@@ -372,6 +395,15 @@ class Det {
       this.fast=this.a*this.fast+(1-this.a)*e;
       const prevSlow=this.slow;
       this.slow=this.b*this.slow+(1-this.b)*e;
+      this.env=this.c*this.env+(1-this.c)*x*x;
+      const f=frame0+i;
+      if(this.track){
+        const age=f-this.tF;
+        if(age<this.pkWin){ if(this.env>this.pk) this.pk=this.env; }
+        else if(this.env<Math.max(this.pk*this.drop,this.floor*0.25) || age>this.maxLen){
+          out.push({type:'end',frame:this.tF,end:Math.max(this.tF+1,f-this.lag),cut:false}); this.track=false;
+        }
+      }
       if(this.win>0){
         this.acc+=x*x; this.n++; this.win--;
         if(this.win===0) out.push({type:'hit',frame:this.oF,rms:Math.sqrt(this.acc/this.n)});
@@ -383,7 +415,11 @@ class Det {
         const L=this.bl; let mn=Infinity, mi=0;
         for(let k=0;k<L;k++){ const v=this.buf[(this.bi+k)%L]; if(v<mn){mn=v;mi=k;} }
         let on=L-1; for(let k=mi;k<L;k++){ if(this.buf[(this.bi+k)%L]>mn*4){ on=k; break; } }
-        this.since=0; this.oF=frame0+i-(L-1-on); this.win=this.measure; this.acc=0; this.n=0;
+        const nf=frame0+i-(L-1-on);
+        if(this.win>0 && this.n>0) out.push({type:'hit',frame:this.oF,rms:Math.sqrt(this.acc/this.n)});
+        if(this.track) out.push({type:'end',frame:this.tF,end:nf,cut:true});
+        this.since=0; this.oF=nf; this.win=this.measure; this.acc=0; this.n=0;
+        this.track=true; this.tF=nf; this.pk=this.env;
       }
       const ax=x<0?-x:x; if(ax>this.lvl) this.lvl=ax;
       if(++this.lvlN>=this.lvlEvery){ out.push({type:'lvl',v:this.lvl}); this.lvl=0; this.lvlN=0; }
@@ -421,7 +457,8 @@ function makeExample(){
     const beat = (Math.floor(i/2)%4)+1, back = beat===2||beat===4;
     const off = down ? (beat===4 ? -7 : 3) + gauss(r)*6 : 10+gauss(r)*9;
     const db = (down ? -18.5+gauss(r)*1.2 : -21.6+gauss(r)*2) + (back && down ? 1.8 : 0);
-    out.push({ off, db, subIdx: i%2, beat, bn: Math.floor(i/2), bdMs: 625, down, grid:2 });
+    const lenMs = down ? (back ? 118+gauss(r)*14 : 196+gauss(r)*18) : 142+gauss(r)*30;
+    out.push({ off, db, subIdx: i%2, beat, bn: Math.floor(i/2), bdMs: 625, slotMs: 312.5, lenMs, cut:false, down, grid:2 });
   }
   return out;
 }
@@ -473,7 +510,8 @@ async function setupDetector(){
 
 function onDet(m){
   if (m.type === 'lvl'){ level = Math.max(level*0.6, m.v); return; }
-  if (m.type === 'hit') onHit(m.frame/ctx.sampleRate, m.rms);
+  if (m.type === 'hit') onHit(m.frame/ctx.sampleRate, m.rms, m.frame);
+  if (m.type === 'end') onEnd(m);
 }
 
 function click(t, kind){
@@ -540,6 +578,7 @@ function stop(){
   try { srcNode && srcNode.disconnect(); detNode && detNode.disconnect(); sinkGain && sinkGain.disconnect(); } catch(e) {}
   srcNode = detNode = null; fallbackDet = null;
   $('start').textContent = 'Start'; $('start').dataset.on = 'false';
+  render();
   document.querySelectorAll('.light').forEach(l => l.classList.remove('on','silent'));
   try { wakeLock && wakeLock.release(); } catch(e) {} wakeLock = null;
 }
@@ -551,7 +590,13 @@ function reanchor(){
 }
 
 /* ---------- Hit analysis ---------- */
-function onHit(t, rms){
+const pendingEnds = new Map();
+function onEnd(m){
+  const h = hits.find(x => x.f === m.frame);
+  if (h){ applyEnd(h, m); render(); } else { pendingEnds.set(m.frame, m); if (pendingEnds.size > 20) pendingEnds.delete(pendingEnds.keys().next().value); }
+}
+function applyEnd(h, m){ h.lenMs = (m.end - m.frame)/ctx.sampleRate*1000; h.cut = !!m.cut; }
+function onHit(t, rms, frame){
   if (!running || t < analyzeFrom) return;
   const outLat = ctx.outputLatency || 0;
   const ta = t - outLat - S.latMs/1000;
@@ -563,7 +608,9 @@ function onHit(t, rms){
   const subIdx = ((n % S.grid) + S.grid) % S.grid;
   const beat = ((Math.floor(n/S.grid) % 4) + 4) % 4 + 1;
   const db = 20*Math.log10(Math.max(rms, 1e-7));
-  hits.push({off, db, subIdx, beat, bn: Math.floor(n/S.grid), bdMs: bd*1000, down: S.grid===1 ? true : subIdx%2===0, grid:S.grid});
+  const h = {f: frame, off, db, subIdx, beat, bn: Math.floor(n/S.grid), bdMs: bd*1000, slotMs: bd*1000/S.grid, lenMs: NaN, cut:false, down: S.grid===1 ? true : subIdx%2===0, grid:S.grid};
+  if (pendingEnds.has(frame)){ applyEnd(h, pendingEnds.get(frame)); pendingEnds.delete(frame); }
+  hits.push(h);
   if (hits.length > 4000) hits.shift();
   render();
 }
@@ -580,6 +627,13 @@ function posName(h){
   return h.beat + (subs[h.subIdx] ? ' ' + subs[h.subIdx] : '');
 }
 
+// share of its slot a strum sounded (0–100); a strum that rang until the next one counts as 100
+function ringPct(h){ if (isNaN(h.lenMs)) return NaN; return h.cut ? 100 : Math.min(100, h.lenMs/h.slotMs*100); }
+const measured = arr => arr.filter(h => !isNaN(h.lenMs));
+function lenText(h){
+  if (!h || isNaN(h.lenMs)) return '—';
+  return h.cut ? `${Math.round(h.lenMs)} ms · rang through` : `${Math.round(h.lenMs)} ms · ${Math.round(ringPct(h))}% of slot`;
+}
 function setChip(el, text, cls){ el.textContent = text; el.className = 'chip ' + cls; }
 
 function render(){
@@ -613,8 +667,18 @@ function render(){
   else if (vSd < 3) setChip($('sVsdC'),'Fair','c-ok');
   else setChip($('sVsdC'),'Uneven','c-late');
 
-  $('sVavg').textContent = isNaN(vAvg) ? '—' : fmt(vAvg) + ' dBFS';
+  $('sVavg').textContent = isNaN(vAvg) ? '—' : fmt(vAvg) + ' dB';
   setChip($('sVavgC'), dbs.length>1 ? `range ${(Math.max(...dbs)-Math.min(...dbs)).toFixed(1)} dB` : '—', 'c-muted');
+  const mw = measured(w), lens = mw.map(h=>h.lenMs), pcts = mw.map(ringPct);
+  const lAvg = mean(lens), lSd = sd(lens), throughShare = mw.length ? mw.filter(h=>h.cut).length/mw.length : 0;
+  $('sL').textContent = isNaN(lAvg) ? '—' : Math.round(lAvg) + ' ms';
+  setChip($('sLC'), isNaN(lAvg) ? 'Waiting' : throughShare > 0.7 ? 'mostly ringing through' : `${Math.round(mean(pcts))}% of slot`, 'c-muted');
+  $('sLsd').textContent = isNaN(lSd) ? '—' : Math.round(lSd) + ' ms';
+  if (isNaN(lSd)) setChip($('sLsdC'),'Waiting','c-muted');
+  else if (throughShare > 0.7) setChip($('sLsdC'),'Ringing chords','c-muted');
+  else if (lSd < 15) setChip($('sLsdC'),'Even','c-ok');
+  else if (lSd < 30) setChip($('sLsdC'),'Fair','c-ok');
+  else setChip($('sLsdC'),'Uneven','c-late');
   $('sN').textContent = hits.length;
   setChip($('sNC'), example ? 'example' : 'session', 'c-muted');
 
@@ -629,13 +693,14 @@ function render(){
     $('lastWord').className = 'w ' + $('lastOff').className.slice(2);
     $('lastDb').textContent = fmt(last.db) + ' dBFS';
     $('lastRel').textContent = isNaN(vAvg) ? '—' : fmtS(last.db - vAvg) + ' dB';
+    $('lastLen').textContent = lenText(last);
     $('lastPos').textContent = posName(last) + (last.grid>1 ? (last.down?' · down':' · up') : '');
   } else {
     $('lastOff').textContent = '—'; $('lastOff').className='v'; $('lastWord').textContent = 'waiting for a strum'; $('lastWord').className='w c-muted';
-    $('lastDb').textContent = '—'; $('lastRel').textContent = '—'; $('lastPos').textContent = '—';
+    $('lastDb').textContent = '—'; $('lastRel').textContent = '—'; $('lastPos').textContent = '—'; $('lastLen').textContent = '—';
   }
   drawNeedle();
-  drawTiming(); drawVolume(); renderStrokes(w); renderBeats(w);
+  drawTiming(); drawVolume(); drawLength(); renderStrokes(w); renderBeats(w);
 }
 
 function renderStrokes(w){
@@ -643,20 +708,24 @@ function renderStrokes(w){
   const groups = [['Downstrokes', w.filter(h=>h.down)], ['Upstrokes', w.filter(h=>!h.down)]];
   for (const [name, g] of groups){
     const tr = document.createElement('tr');
-    const o = g.map(h=>h.off), d = g.map(h=>h.db);
-    [name, g.length, g.length ? fmtS(mean(o))+' ms' : '—', g.length>1 ? fmt(sd(o))+' ms' : '—', g.length ? fmt(mean(d))+' dB' : '—']
+    const o = g.map(h=>h.off), d = g.map(h=>h.db), rp = measured(g).map(ringPct);
+    [name, g.length, g.length ? fmtS(mean(o))+' ms' : '—', g.length>1 ? fmt(sd(o))+' ms' : '—', g.length ? fmt(mean(d))+' dB' : '—', rp.length ? Math.round(mean(rp))+'%' : '—']
       .forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
     body.appendChild(tr);
   }
   const dn = groups[0][1], up = groups[1][1];
   const ins = $('insight');
+  ins.classList.toggle('c-muted', running);
+  if (running){ ins.textContent = 'Insights appear when you stop the metronome.'; return; }
   if (dn.length >= 4 && up.length >= 4){
     const dt = mean(up.map(h=>h.off)) - mean(dn.map(h=>h.off));
     const dv = mean(up.map(h=>h.db)) - mean(dn.map(h=>h.db));
     const parts = [];
-    if (Math.abs(dt) >= 4) parts.push(`land ${Math.abs(dt).toFixed(0)} ms ${dt>0?'later':'earlier'} than your downstrokes`);
+    if (Math.abs(dt) >= 4) parts.push(`land ${Math.abs(dt).toFixed(0)} ms ${dt>0?'later':'earlier'}`);
     if (Math.abs(dv) >= 1.5) parts.push(`are ${Math.abs(dv).toFixed(1)} dB ${dv<0?'quieter':'louder'}`);
-    ins.textContent = parts.length ? 'Your upstrokes ' + parts.join(' and ') + '.' : 'Your up and down strokes are well matched in timing and level.';
+    const rd = mean(measured(up).map(ringPct)) - mean(measured(dn).map(ringPct));
+    if (Math.abs(rd) >= 10) parts.push(`ring ${Math.abs(rd).toFixed(0)}% of the slot ${rd<0?'less':'more'}`);
+    ins.textContent = parts.length ? 'Compared with your downstrokes, your upstrokes ' + parts.join(', ').replace(/, ([^,]*)$/, ' and $1') + '.' : 'Your up and down strokes are well matched in timing, level and length.';
   } else if (S.grid === 1 && !example){
     ins.textContent = 'Switch the grid to eighths or 16ths to compare up and down strokes.';
   } else ins.textContent = 'Play a few bars of alternate strumming to compare strokes.';
@@ -671,7 +740,8 @@ function beatStats(w){
     const g = on.filter(h => h.beat === b);
     // length of this beat = time from this beat's strum to the next beat's strum
     const lens = g.map(h => { const nx = byBn.get(h.bn+1); return nx ? nx.off - h.off : NaN; }).filter(v => !isNaN(v));
-    return { beat:b, n:g.length, off:mean(g.map(h=>h.off)), sd:sd(g.map(h=>h.off)), rel:mean(g.map(h=>h.db)) - allDb, len:mean(lens), nLen:lens.length };
+    const gm = measured(g);
+    return { beat:b, ring:mean(gm.map(ringPct)), ringMs:mean(gm.map(h=>h.lenMs)), nRing:gm.length, n:g.length, off:mean(g.map(h=>h.off)), sd:sd(g.map(h=>h.off)), rel:mean(g.map(h=>h.db)) - allDb, len:mean(lens), nLen:lens.length };
   });
   return {beats:out, on};
 }
@@ -680,6 +750,11 @@ function barHTML(v, max, cls){
   const c = Math.max(-1, Math.min(1, v/max)) * 50;
   const left = c < 0 ? 50 + c : 50, width = Math.abs(c);
   return `<div class="mbar"><div class="fill" style="left:${left}%;width:${width}%;background:var(--${cls})"></div><div class="mid"></div></div>`;
+}
+
+function pctBar(p, cls){
+  const v = isNaN(p) ? 0 : Math.max(0, Math.min(100, p));
+  return `<div class="mbar"><div class="fill" style="left:0;width:${v}%;background:var(--${cls})"></div></div>`;
 }
 
 function renderBeats(w){
@@ -694,11 +769,15 @@ function renderBeats(w){
       <div class="bnum">${b.beat}<small>${b.n} strums</small></div>
       <div class="metric"><span class="label">Timing</span><span class="num c-${offCls}">${b.n ? fmtS(b.off)+' ms' : '—'}</span>${barHTML(b.off||0, 25, offCls)}</div>
       <div class="metric"><span class="label">Level vs. avg</span><span class="num">${b.n ? fmtS(b.rel)+' dB' : '—'}</span>${barHTML(b.rel||0, 4, 'ink')}</div>
-      <div class="metric"><span class="label">Beat length</span><span class="num c-${lenCls}">${b.nLen ? fmtS(b.len)+' ms' : '—'}</span>${barHTML(b.len||0, 25, lenCls)}</div>`;
+      <div class="metric"><span class="label">Ring time</span><span class="num">${b.nRing ? Math.round(b.ringMs)+' ms · '+Math.round(b.ring)+'%' : '—'}</span>${pctBar(b.ring, 'ink')}</div>
+      <div class="metric"><span class="label">Time to next beat</span><span class="num c-${lenCls}">${b.nLen ? fmtS(b.len)+' ms' : '—'}</span>${barHTML(b.len||0, 25, lenCls)}</div>`;
     box.appendChild(col);
   }
   const ul = $('beatInsights'); ul.innerHTML = '';
-  beatInsights(beats).forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+  const tips = running ? null : beatInsights(beats);
+  (tips || ['Insights appear when you stop the metronome.']).forEach(t => {
+    const li = document.createElement('li'); li.textContent = t; if (!tips) li.className = 'paused-note'; ul.appendChild(li);
+  });
 }
 
 function beatInsights(beats){
@@ -711,7 +790,9 @@ function beatInsights(beats){
   const parts = [];
   if (Math.abs(dOff) >= 4) parts.push(`land ${Math.abs(dOff).toFixed(0)} ms ${dOff>0?'later':'earlier'}`);
   if (Math.abs(dDb) >= 1) parts.push(`are ${Math.abs(dDb).toFixed(1)} dB ${dDb>0?'louder':'quieter'}`);
-  tips.push(parts.length ? `Your 2 and 4 ${parts.join(' and ')} than your 1 and 3.` : 'Your 2 and 4 match your 1 and 3 in timing and level.');
+  const dRing = avg(back,'ring') - avg(front,'ring'), dRingMs = avg(back,'ringMs') - avg(front,'ringMs');
+  if (Math.abs(dRing) >= 10) parts.push(`ring ${Math.abs(dRingMs).toFixed(0)} ms ${dRing<0?'shorter':'longer'}`);
+  tips.push(parts.length ? `Your 2 and 4 ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')} than your 1 and 3.` : 'Your 2 and 4 match your 1 and 3 in timing, level and length.');
 
   const withLen = beats.filter(b => b.nLen >= 3);
   if (withLen.length){
@@ -724,6 +805,11 @@ function beatInsights(beats){
   if (Math.abs(worst.off) >= 6) tips.push(`Beat ${worst.beat} is your least centered, ${Math.abs(worst.off).toFixed(0)} ms ${worst.off>0?'behind':'ahead of'} the click on average.`);
   const loud = ready.reduce((a,b) => b.rel > a.rel ? b : a), quiet = ready.reduce((a,b) => b.rel < a.rel ? b : a);
   if (loud.rel - quiet.rel >= 2) tips.push(`Beat ${loud.beat} is your loudest and beat ${quiet.beat} your quietest, ${(loud.rel-quiet.rel).toFixed(1)} dB apart.`);
+  const rung = ready.filter(b => b.nRing >= 3);
+  if (rung.length >= 2){
+    const lng = rung.reduce((a,b) => b.ring > a.ring ? b : a), sht = rung.reduce((a,b) => b.ring < a.ring ? b : a);
+    if (lng.ring - sht.ring >= 20) tips.push(`Beat ${sht.beat} is your shortest note (${Math.round(sht.ringMs)} ms) and beat ${lng.beat} your longest (${Math.round(lng.ringMs)} ms).`);
+  }
   const steady = ready.filter(b => !isNaN(b.sd));
   if (steady.length){
     const loose = steady.reduce((a,b) => b.sd > a.sd ? b : a);
@@ -815,6 +901,29 @@ function drawVolume(){
     const dv = d.db - m, y0 = y(0), y1 = y(dv);
     g.fillStyle = d.down ? ink : muted; g.globalAlpha = d.down ? 0.8 : 0.65;
     g.fillRect(xi - bw/2, Math.min(y0,y1), bw, Math.max(1, Math.abs(y1-y0)));
+    g.globalAlpha = 1;
+  });
+}
+
+function drawLength(){
+  const {g,w,h} = prep($('lchart'));
+  const ink = css('--ink'), muted = css('--muted'), line = css('--line');
+  const padL = 52, padR = 10, padT = 8, padB = 8;
+  const y = v => padT + (1 - v/100) * (h-padT-padB);
+  g.font = '11px ' + css('--f-mono'); g.textBaseline = 'middle';
+  [0, 50, 100].forEach(v => {
+    g.strokeStyle = v===0 ? muted : line; g.lineWidth = 1; g.beginPath(); g.moveTo(padL, Math.round(y(v))+0.5); g.lineTo(w-padR, Math.round(y(v))+0.5); g.stroke();
+    g.fillStyle = muted; g.textAlign = 'right'; g.fillText(v+'%', padL-8, y(v));
+  });
+  const N = 64, data = hits.slice(-N);
+  if (!data.length) return;
+  const step = (w-padL-padR-12)/(N-1), bw = Math.max(2, step*0.62);
+  data.forEach((d,i) => {
+    const p = ringPct(d); if (isNaN(p)) return;
+    const xi = padL + 6 + (N - data.length + i)*step;
+    g.fillStyle = d.down ? ink : muted;
+    g.globalAlpha = d.cut ? 0.25 : (d.down ? 0.8 : 0.65);
+    g.fillRect(xi - bw/2, y(p), bw, y(0) - y(p));
     g.globalAlpha = 1;
   });
 }
@@ -917,8 +1026,8 @@ $('trig').value = S.trigDb; $('trigVal').textContent = fmt(S.trigDb,0)+' dB';
 $('lat').value = S.latMs; $('tol').value = String(S.tol); $('win').value = String(S.win);
 $('vol').value = S.vol; $('accent').checked = S.accent; $('countin').value = String(S.countIn);
 
-new ResizeObserver(() => { drawTiming(); drawVolume(); }).observe($('tchart'));
-if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawTiming(); drawVolume(); });
+new ResizeObserver(() => { drawTiming(); drawVolume(); drawLength(); }).observe($('tchart'));
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawTiming(); drawVolume(); drawLength(); });
 render();
 requestAnimationFrame(loop);
 })();
