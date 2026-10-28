@@ -1,0 +1,11 @@
+{
+  "name": "pocket-meter",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write index.html css js",
+    "format:check": "prettier --check index.html css js"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

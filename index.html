@@ -1,218 +1,363 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pocket Meter</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="css/pocket-meter.css">
-</head>
-<body>
-<div class="wrap">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pocket Meter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="css/pocket-meter.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <div class="label">Rhythm guitar practice</div>
+          <h1>Pocket Meter</h1>
+        </div>
+        <p>
+          Play along with the click. Every strum is timed against the grid and its loudness
+          measured, so you can see whether you rush, drag, or let the dynamics wander.
+        </p>
+      </header>
 
-<header>
-  <div>
-    <div class="label">Rhythm guitar practice</div>
-    <h1>Pocket Meter</h1>
-  </div>
-  <p>Play along with the click. Every strum is timed against the grid and its loudness measured, so you can see whether you rush, drag, or let the dynamics wander.</p>
-</header>
-
-<section class="panel transport" aria-label="Metronome">
-  <div class="tempo">
-    <button class="step" id="bpmDown" aria-label="Slower">−</button>
-    <input class="bpm" id="bpm" type="number" min="40" max="220" value="96" aria-label="Tempo in beats per minute">
-    <span class="unit">BPM</span>
-    <button class="step" id="bpmUp" aria-label="Faster">+</button>
-    <input class="tempo-range" id="bpmRange" type="range" min="40" max="220" value="96" aria-label="Tempo slider">
-    <button class="tap" id="tap">Tap</button>
-  </div>
-  <div class="group">
-    <span class="label">Click on</span>
-    <div class="seg" role="group" aria-label="Click pattern">
-      <button id="patAll" aria-pressed="true">All 4 beats</button>
-      <button id="patBack" aria-pressed="false">2 &amp; 4</button>
-    </div>
-  </div>
-  <div class="group">
-    <span class="label">Strumming grid</span>
-    <div class="seg" role="group" aria-label="Strumming grid">
-      <button data-grid="1" aria-pressed="false">♩ Quarters</button>
-      <button data-grid="2" aria-pressed="true">♪ Eighths</button>
-      <button data-grid="4" aria-pressed="false">16ths</button>
-    </div>
-  </div>
-  <div class="go">
-    <div class="lights" aria-hidden="true">
-      <div class="light" data-b="0">1</div><div class="light" data-b="1">2</div>
-      <div class="light" data-b="2">3</div><div class="light" data-b="3">4</div>
-    </div>
-    <button class="start" id="start" data-on="false">Start</button>
-  </div>
-</section>
-
-<div class="banner" id="banner">
-  <span class="pill">Example</span>
-  <span>These numbers are from a sample take so you can see the layout. Press <strong>Start</strong> (or the space bar) to measure yourself. Use headphones so the mic hears only your guitar.</span>
-</div>
-
-<section class="live">
-  <div class="panel readout" aria-live="polite">
-    <div class="label">Last strum</div>
-    <div class="big"><span class="v" id="lastOff">+4</span><span class="w" id="lastWord">ms · late</span></div>
-    <div>
-      <div class="needle" id="needle"><div class="band" id="band"></div><div class="zero"></div></div>
-      <div class="needle-scale num"><span id="scaleL">−50 ms early</span><span>on the grid</span><span id="scaleR">+50 ms late</span></div>
-    </div>
-    <div class="lastvol">
-      <div><span class="label">Level</span><span class="num" id="lastDb">−18.2 dBFS</span></div>
-      <div><span class="label">vs. average</span><span class="num" id="lastRel">+0.6 dB</span></div>
-      <div><span class="label">Length</span><span class="num" id="lastLen">—</span><span class="sub" id="lastLenSub"></span></div>
-      <div><span class="label">Landed on</span><span class="num" id="lastPos">2 &amp;</span></div>
-    </div>
-  </div>
-
-  <div class="panel stats">
-    <div class="stats-head">
-      <h2>Consistency</h2>
-      <div class="row"><button class="chip calchip c-late" id="calChip" title="Go to latency calibration">Not calibrated</button><span class="label" id="winLabel">Last 32 strums</span></div>
-    </div>
-    <div class="stat"><span class="label">Timing bias</span><span class="num" id="sBias">+6.1 ms</span><span class="chip c-late" id="sBiasC">Dragging</span></div>
-    <div class="stat"><span class="label">Timing spread (SD)</span><span class="num" id="sSd">9.4 ms</span><span class="chip c-ok" id="sSdC">Solid</span></div>
-    <div class="stat"><span class="label">Inside ±20 ms</span><span class="num" id="sIn">84%</span><span class="chip c-muted" id="sInC">27 of 32</span></div>
-    <div class="stat"><span class="label">Volume spread (SD)</span><span class="num" id="sVsd">2.4 dB</span><span class="chip c-ok" id="sVsdC">Fair</span></div>
-    <div class="stat"><span class="label">Average level (dBFS)</span><span class="num" id="sVavg">−19.8 dBFS</span><span class="chip c-muted" id="sVavgC">range 8.1 dB</span></div>
-    <div class="stat"><span class="label">Note length</span><span class="num" id="sL">—</span><span class="chip c-muted" id="sLC">—</span></div>
-    <div class="stat"><span class="label">Length spread (SD)</span><span class="num" id="sLsd">—</span><span class="chip c-muted" id="sLsdC">—</span></div>
-    <div class="stat"><span class="label">Strums counted</span><span class="num" id="sN">48</span><span class="chip c-muted" id="sNC">session</span></div>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="chart-head">
-    <h2>Timing, strum by strum</h2>
-    <div class="legend">
-      <span class="c-early"><i class="dot"></i>Early</span>
-      <span class="c-ok"><i class="dot"></i>Inside window</span>
-      <span class="c-late"><i class="dot"></i>Late</span>
-      <span class="c-muted"><i class="dot"></i>Downstroke</span>
-      <span class="c-muted"><i class="ring"></i>Upstroke</span>
-    </div>
-  </div>
-  <canvas id="tchart" aria-label="Timing offset of each strum in milliseconds"></canvas>
-</section>
-
-<section class="panel">
-  <div class="chart-head">
-    <h2>Dynamics, strum by strum</h2>
-    <div class="legend">
-      <span><i class="sq" style="color:var(--ink)"></i>Downstroke</span>
-      <span class="c-muted"><i class="sq"></i>Upstroke</span>
-      <span class="c-muted">Bars show dB above or below your average</span>
-    </div>
-  </div>
-  <canvas id="vchart" aria-label="Loudness of each strum relative to the average"></canvas>
-</section>
-
-<section class="panel">
-  <div class="chart-head">
-    <h2>Note length, strum by strum</h2>
-    <div class="legend">
-      <span><i class="sq" style="color:var(--ink)"></i>Downstroke</span>
-      <span class="c-muted"><i class="sq"></i>Upstroke</span>
-      <span class="c-muted"><i class="sq" style="opacity:.3"></i>Rang into the next strum</span>
-      <span class="c-muted">Height is the share of the slot the strum sounded</span>
-    </div>
-  </div>
-  <canvas id="lchart" aria-label="How long each strum sounded, as a share of its slot"></canvas>
-</section>
-
-<section class="panel" aria-labelledby="beatsH">
-  <div class="chart-head">
-    <h2 id="beatsH">Beat by beat</h2>
-    <span class="label">Strums landing on each beat · backbeats in orange</span>
-  </div>
-  <div class="beats" id="beats"></div>
-  <ul class="insights" id="beatInsights"></ul>
-</section>
-
-<section class="lower">
-  <div class="panel">
-    <h2>Downstrokes vs. upstrokes</h2>
-    <p class="hint" style="margin-top:4px">Assumes alternate strumming: on-beat subdivisions are down, the “&amp;” and “a” positions are up.</p>
-    <div style="overflow-x:auto;margin-top:8px">
-      <table>
-        <thead><tr><th>Stroke</th><th>Strums</th><th>Avg offset</th><th>Spread</th><th>Avg level</th><th>Ring</th></tr></thead>
-        <tbody id="strokeBody"></tbody>
-      </table>
-    </div>
-    <p class="insight" id="insight"></p>
-  </div>
-
-  <div class="panel">
-    <h2>Setup</h2>
-    <div class="settings" style="margin-top:12px">
-      <div class="field wide">
-        <label class="label" for="trig">Trigger level <span class="num" id="trigVal">−42 dB</span></label>
-        <input type="range" id="trig" min="-66" max="-12" step="1" value="-42">
-        <div class="meter" aria-hidden="true"><div class="fill" id="meterFill"></div><div class="thr" id="meterThr"></div></div>
-        <p class="hint">Strum and watch the meter. Set the line just above the room noise so only real strums count.</p>
-      </div>
-      <div class="field wide">
-        <label class="label" for="device">Input</label>
-        <select id="device"><option value="">Default microphone</option></select>
-      </div>
-      <div class="field wide" id="sinkField" hidden>
-        <label class="label" for="sink">Output for the click</label>
-        <select id="sink"><option value="">Default speakers or headphones</option></select>
-        <p class="hint">Pick the same device as your input when you can, such as your interface’s mic input and its headphone jack. Two separate devices run on separate clocks, and the delay between them slowly drifts.</p>
-      </div>
-      <div class="field wide cal" id="calBox">
-        <span class="label">Latency</span>
-        <div class="cal-row">
-          <button class="calbtn" id="calBtn">Calibrate</button>
-          <div class="cal-status" aria-live="polite">
-            <span id="calStatus">Not calibrated</span>
-            <span class="hint" id="calDetail"></span>
+      <section class="panel transport" aria-label="Metronome">
+        <div class="tempo">
+          <button class="step" id="bpmDown" aria-label="Slower">−</button>
+          <input
+            class="bpm"
+            id="bpm"
+            type="number"
+            min="40"
+            max="220"
+            value="96"
+            aria-label="Tempo in beats per minute"
+          />
+          <span class="unit">BPM</span>
+          <button class="step" id="bpmUp" aria-label="Faster">+</button>
+          <input
+            class="tempo-range"
+            id="bpmRange"
+            type="range"
+            min="40"
+            max="220"
+            value="96"
+            aria-label="Tempo slider"
+          />
+          <button class="tap" id="tap">Tap</button>
+        </div>
+        <div class="group">
+          <span class="label">Click on</span>
+          <div class="seg" role="group" aria-label="Click pattern">
+            <button id="patAll" aria-pressed="true">All 4 beats</button>
+            <button id="patBack" aria-pressed="false">2 &amp; 4</button>
           </div>
         </div>
-        <p class="hint">Takes about 8 seconds. Turn the click volume up, mute your strings and hold still. The page plays a burst of clicks and times how long each takes to come back through your mic. Using headphones? Hold one earbud or earcup against the mic while it runs. Recalibrate whenever you change your input, output or headphones.</p>
+        <div class="group">
+          <span class="label">Strumming grid</span>
+          <div class="seg" role="group" aria-label="Strumming grid">
+            <button data-grid="1" aria-pressed="false">♩ Quarters</button>
+            <button data-grid="2" aria-pressed="true">♪ Eighths</button>
+            <button data-grid="4" aria-pressed="false">16ths</button>
+          </div>
+        </div>
+        <div class="go">
+          <div class="lights" aria-hidden="true">
+            <div class="light" data-b="0">1</div>
+            <div class="light" data-b="1">2</div>
+            <div class="light" data-b="2">3</div>
+            <div class="light" data-b="3">4</div>
+          </div>
+          <button class="start" id="start" data-on="false">Start</button>
+        </div>
+      </section>
+
+      <div class="banner" id="banner">
+        <span class="pill">Example</span>
+        <span
+          >These numbers are from a sample take so you can see the layout. Press
+          <strong>Start</strong> (or the space bar) to measure yourself. Use headphones so the mic
+          hears only your guitar.</span
+        >
       </div>
-      <div class="field">
-        <label class="label" for="lat">Manual adjustment</label>
-        <div class="row"><input type="number" id="lat" value="0" step="1"><span class="hint">ms</span></div>
-        <p class="hint">Added to the measured delay. Leave at 0 after calibrating.</p>
-      </div>
-      <div class="field">
-        <label class="label" for="tol">On-time window</label>
-        <select id="tol"><option value="10">±10 ms (tight)</option><option value="20" selected>±20 ms</option><option value="30">±30 ms (relaxed)</option></select>
-        <label class="label" for="win">Stats cover</label>
-        <select id="win"><option value="16">Last 16 strums</option><option value="32" selected>Last 32 strums</option><option value="64">Last 64 strums</option><option value="0">Whole session</option></select>
-      </div>
-      <div class="field">
-        <label class="label" for="vol">Click volume</label>
-        <input type="range" id="vol" min="0" max="1" step="0.05" value="0.6">
-      </div>
-      <div class="field">
-        <label class="check"><input type="checkbox" id="accent" checked> Accent beat 1</label>
-        <label class="label" for="countin">Count-in</label>
-        <select id="countin"><option value="0">None</option><option value="1" selected>1 bar</option><option value="2">2 bars</option></select>
-        <button class="ghost" id="reset">Clear session</button>
-      </div>
+
+      <section class="live">
+        <div class="panel readout" aria-live="polite">
+          <div class="label">Last strum</div>
+          <div class="big">
+            <span class="v" id="lastOff">+4</span><span class="w" id="lastWord">ms · late</span>
+          </div>
+          <div>
+            <div class="needle" id="needle">
+              <div class="band" id="band"></div>
+              <div class="zero"></div>
+            </div>
+            <div class="needle-scale num">
+              <span id="scaleL">−50 ms early</span><span>on the grid</span
+              ><span id="scaleR">+50 ms late</span>
+            </div>
+          </div>
+          <div class="lastvol">
+            <div>
+              <span class="label">Level</span><span class="num" id="lastDb">−18.2 dBFS</span>
+            </div>
+            <div>
+              <span class="label">vs. average</span><span class="num" id="lastRel">+0.6 dB</span>
+            </div>
+            <div>
+              <span class="label">Length</span><span class="num" id="lastLen">—</span
+              ><span class="sub" id="lastLenSub"></span>
+            </div>
+            <div>
+              <span class="label">Landed on</span><span class="num" id="lastPos">2 &amp;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel stats">
+          <div class="stats-head">
+            <h2>Consistency</h2>
+            <div class="row">
+              <button class="chip calchip c-late" id="calChip" title="Go to latency calibration">
+                Not calibrated</button
+              ><span class="label" id="winLabel">Last 32 strums</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="label">Timing bias</span><span class="num" id="sBias">+6.1 ms</span
+            ><span class="chip c-late" id="sBiasC">Dragging</span>
+          </div>
+          <div class="stat">
+            <span class="label">Timing spread (SD)</span><span class="num" id="sSd">9.4 ms</span
+            ><span class="chip c-ok" id="sSdC">Solid</span>
+          </div>
+          <div class="stat">
+            <span class="label">Inside ±20 ms</span><span class="num" id="sIn">84%</span
+            ><span class="chip c-muted" id="sInC">27 of 32</span>
+          </div>
+          <div class="stat">
+            <span class="label">Volume spread (SD)</span><span class="num" id="sVsd">2.4 dB</span
+            ><span class="chip c-ok" id="sVsdC">Fair</span>
+          </div>
+          <div class="stat">
+            <span class="label">Average level (dBFS)</span
+            ><span class="num" id="sVavg">−19.8 dBFS</span
+            ><span class="chip c-muted" id="sVavgC">range 8.1 dB</span>
+          </div>
+          <div class="stat">
+            <span class="label">Note length</span><span class="num" id="sL">—</span
+            ><span class="chip c-muted" id="sLC">—</span>
+          </div>
+          <div class="stat">
+            <span class="label">Length spread (SD)</span><span class="num" id="sLsd">—</span
+            ><span class="chip c-muted" id="sLsdC">—</span>
+          </div>
+          <div class="stat">
+            <span class="label">Strums counted</span><span class="num" id="sN">48</span
+            ><span class="chip c-muted" id="sNC">session</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="chart-head">
+          <h2>Timing, strum by strum</h2>
+          <div class="legend">
+            <span class="c-early"><i class="dot"></i>Early</span>
+            <span class="c-ok"><i class="dot"></i>Inside window</span>
+            <span class="c-late"><i class="dot"></i>Late</span>
+            <span class="c-muted"><i class="dot"></i>Downstroke</span>
+            <span class="c-muted"><i class="ring"></i>Upstroke</span>
+          </div>
+        </div>
+        <canvas id="tchart" aria-label="Timing offset of each strum in milliseconds"></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="chart-head">
+          <h2>Dynamics, strum by strum</h2>
+          <div class="legend">
+            <span><i class="sq" style="color: var(--ink)"></i>Downstroke</span>
+            <span class="c-muted"><i class="sq"></i>Upstroke</span>
+            <span class="c-muted">Bars show dB above or below your average</span>
+          </div>
+        </div>
+        <canvas id="vchart" aria-label="Loudness of each strum relative to the average"></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="chart-head">
+          <h2>Note length, strum by strum</h2>
+          <div class="legend">
+            <span><i class="sq" style="color: var(--ink)"></i>Downstroke</span>
+            <span class="c-muted"><i class="sq"></i>Upstroke</span>
+            <span class="c-muted"
+              ><i class="sq" style="opacity: 0.3"></i>Rang into the next strum</span
+            >
+            <span class="c-muted">Height is the share of the slot the strum sounded</span>
+          </div>
+        </div>
+        <canvas
+          id="lchart"
+          aria-label="How long each strum sounded, as a share of its slot"
+        ></canvas>
+      </section>
+
+      <section class="panel" aria-labelledby="beatsH">
+        <div class="chart-head">
+          <h2 id="beatsH">Beat by beat</h2>
+          <span class="label">Strums landing on each beat · backbeats in orange</span>
+        </div>
+        <div class="beats" id="beats"></div>
+        <ul class="insights" id="beatInsights"></ul>
+      </section>
+
+      <section class="lower">
+        <div class="panel">
+          <h2>Downstrokes vs. upstrokes</h2>
+          <p class="hint" style="margin-top: 4px">
+            Assumes alternate strumming: on-beat subdivisions are down, the “&amp;” and “a”
+            positions are up.
+          </p>
+          <div style="overflow-x: auto; margin-top: 8px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Stroke</th>
+                  <th>Strums</th>
+                  <th>Avg offset</th>
+                  <th>Spread</th>
+                  <th>Avg level</th>
+                  <th>Ring</th>
+                </tr>
+              </thead>
+              <tbody id="strokeBody"></tbody>
+            </table>
+          </div>
+          <p class="insight" id="insight"></p>
+        </div>
+
+        <div class="panel">
+          <h2>Setup</h2>
+          <div class="settings" style="margin-top: 12px">
+            <div class="field wide">
+              <label class="label" for="trig"
+                >Trigger level <span class="num" id="trigVal">−42 dB</span></label
+              >
+              <input type="range" id="trig" min="-66" max="-12" step="1" value="-42" />
+              <div class="meter" aria-hidden="true">
+                <div class="fill" id="meterFill"></div>
+                <div class="thr" id="meterThr"></div>
+              </div>
+              <p class="hint">
+                Strum and watch the meter. Set the line just above the room noise so only real
+                strums count.
+              </p>
+            </div>
+            <div class="field wide">
+              <label class="label" for="device">Input</label>
+              <select id="device">
+                <option value="">Default microphone</option>
+              </select>
+            </div>
+            <div class="field wide" id="sinkField" hidden>
+              <label class="label" for="sink">Output for the click</label>
+              <select id="sink">
+                <option value="">Default speakers or headphones</option>
+              </select>
+              <p class="hint">
+                Pick the same device as your input when you can, such as your interface’s mic input
+                and its headphone jack. Two separate devices run on separate clocks, and the delay
+                between them slowly drifts.
+              </p>
+            </div>
+            <div class="field wide cal" id="calBox">
+              <span class="label">Latency</span>
+              <div class="cal-row">
+                <button class="calbtn" id="calBtn">Calibrate</button>
+                <div class="cal-status" aria-live="polite">
+                  <span id="calStatus">Not calibrated</span>
+                  <span class="hint" id="calDetail"></span>
+                </div>
+              </div>
+              <p class="hint">
+                Takes about 8 seconds. Turn the click volume up, mute your strings and hold still.
+                The page plays a burst of clicks and times how long each takes to come back through
+                your mic. Using headphones? Hold one earbud or earcup against the mic while it runs.
+                Recalibrate whenever you change your input, output or headphones.
+              </p>
+            </div>
+            <div class="field">
+              <label class="label" for="lat">Manual adjustment</label>
+              <div class="row">
+                <input type="number" id="lat" value="0" step="1" /><span class="hint">ms</span>
+              </div>
+              <p class="hint">Added to the measured delay. Leave at 0 after calibrating.</p>
+            </div>
+            <div class="field">
+              <label class="label" for="tol">On-time window</label>
+              <select id="tol">
+                <option value="10">±10 ms (tight)</option>
+                <option value="20" selected>±20 ms</option>
+                <option value="30">±30 ms (relaxed)</option>
+              </select>
+              <label class="label" for="win">Stats cover</label>
+              <select id="win">
+                <option value="16">Last 16 strums</option>
+                <option value="32" selected>Last 32 strums</option>
+                <option value="64">Last 64 strums</option>
+                <option value="0">Whole session</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="vol">Click volume</label>
+              <input type="range" id="vol" min="0" max="1" step="0.05" value="0.6" />
+            </div>
+            <div class="field">
+              <label class="check"
+                ><input type="checkbox" id="accent" checked /> Accent beat 1</label
+              >
+              <label class="label" for="countin">Count-in</label>
+              <select id="countin">
+                <option value="0">None</option>
+                <option value="1" selected>1 bar</option>
+                <option value="2">2 bars</option>
+              </select>
+              <button class="ghost" id="reset">Clear session</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tips">
+        <div>
+          <strong>2 &amp; 4 mode</strong>
+          <p>
+            The click sits on the backbeat like a snare. The count-in plays all four beats first so
+            you know where 1 is.
+          </p>
+        </div>
+        <div>
+          <strong>Cleaner readings</strong>
+          <p>
+            Muted or choppy strums have sharp attacks and read best. Long ringing chords can hide
+            the next strum’s attack.
+          </p>
+        </div>
+        <div>
+          <strong>Reading the spread</strong>
+          <p>
+            Under 8 ms is studio tight. 8–15 ms is solid. Above 25 ms the groove starts to feel
+            unsteady to listeners.
+          </p>
+        </div>
+      </section>
     </div>
-  </div>
-</section>
 
-<section class="tips">
-  <div><strong>2 &amp; 4 mode</strong><p>The click sits on the backbeat like a snare. The count-in plays all four beats first so you know where 1 is.</p></div>
-  <div><strong>Cleaner readings</strong><p>Muted or choppy strums have sharp attacks and read best. Long ringing chords can hide the next strum’s attack.</p></div>
-  <div><strong>Reading the spread</strong><p>Under 8 ms is studio tight. 8–15 ms is solid. Above 25 ms the groove starts to feel unsteady to listeners.</p></div>
-</section>
-
-</div>
-
-<script type="module" src="js/main.js"></script>
-</body>
+    <script type="module" src="js/main.js"></script>
+  </body>
 </html>

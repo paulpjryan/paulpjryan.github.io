@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# npm logs
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Browser automation output from local verification
+.playwright-mcp/
