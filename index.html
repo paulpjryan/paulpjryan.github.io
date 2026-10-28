@@ -159,6 +159,14 @@ td:first-child{font-family:var(--f-body)}
 .meter .fill.hot{background:var(--accent)}
 .meter .thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
 .hint{font-size:.82rem;color:var(--muted);margin:0}
+.cal-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.calbtn{background:var(--ink);color:var(--panel);border:0;border-radius:999px;padding:9px 18px;font-weight:600}
+.calbtn:disabled{opacity:.55;cursor:default}
+.cal-status{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+#calStatus{font-weight:600}
+#calStatus.ok{color:var(--ok)} #calStatus.warn{color:var(--late)}
+.cal .hint{margin:0}
+.calchip{border:0;cursor:pointer;font:inherit}
 .tips{color:var(--muted);font-size:.88rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .tips p{margin:4px 0 0}
 .tips strong{color:var(--ink);font-weight:600}
@@ -246,7 +254,7 @@ td:first-child{font-family:var(--f-body)}
   <div class="panel stats">
     <div class="stats-head">
       <h2>Consistency</h2>
-      <span class="label" id="winLabel">Last 32 strums</span>
+      <div class="row"><button class="chip calchip c-late" id="calChip" title="Go to latency calibration">Not calibrated</button><span class="label" id="winLabel">Last 32 strums</span></div>
     </div>
     <div class="stat"><span class="label">Timing bias</span><span class="num" id="sBias">+6.1 ms</span><span class="chip c-late" id="sBiasC">Dragging</span></div>
     <div class="stat"><span class="label">Timing spread (SD)</span><span class="num" id="sSd">9.4 ms</span><span class="chip c-ok" id="sSdC">Solid</span></div>
@@ -333,11 +341,26 @@ td:first-child{font-family:var(--f-body)}
         <label class="label" for="device">Input</label>
         <select id="device"><option value="">Default microphone</option></select>
       </div>
+      <div class="field wide" id="sinkField" hidden>
+        <label class="label" for="sink">Output for the click</label>
+        <select id="sink"><option value="">Default speakers or headphones</option></select>
+        <p class="hint">Pick the same device as your input when you can, such as your interface’s mic input and its headphone jack. Two separate devices run on separate clocks, and the delay between them slowly drifts.</p>
+      </div>
+      <div class="field wide cal" id="calBox">
+        <span class="label">Latency</span>
+        <div class="cal-row">
+          <button class="calbtn" id="calBtn">Calibrate</button>
+          <div class="cal-status" aria-live="polite">
+            <span id="calStatus">Not calibrated</span>
+            <span class="hint" id="calDetail"></span>
+          </div>
+        </div>
+        <p class="hint">Takes about 8 seconds. Turn the click volume up, mute your strings and hold still. The page plays a burst of clicks and times how long each takes to come back through your mic. Using headphones? Hold one earbud or earcup against the mic while it runs. Recalibrate whenever you change your input, output or headphones.</p>
+      </div>
       <div class="field">
-        <label class="label" for="lat">Latency correction</label>
+        <label class="label" for="lat">Manual adjustment</label>
         <div class="row"><input type="number" id="lat" value="0" step="1"><span class="hint">ms</span></div>
-        <button class="ghost" id="zero">Zero my average</button>
-        <p class="hint">Removes the system's audio delay. Use it after a careful take on the click; it treats your current average as on time.</p>
+        <p class="hint">Added to the measured delay. Leave at 0 after calibrating.</p>
       </div>
       <div class="field">
         <label class="label" for="tol">On-time window</label>
@@ -380,7 +403,7 @@ class Det {
     this.refract=Math.round(sr*0.08); this.floor=Math.pow(10,-42/10); this.ratio=4;
     this.a=Math.exp(-1/(0.0015*sr)); this.b=Math.exp(-1/(0.12*sr));
     this.win=0; this.acc=0; this.n=0; this.oF=0; this.measure=Math.round(0.06*sr);
-    this.lvl=0; this.lvlN=0; this.lvlEvery=Math.round(0.05*sr); this.out=[]; this.bl=Math.round(0.03*sr); this.buf=new Float32Array(this.bl); this.bi=0;
+    this.lvl=0; this.emax=0; this.lvlN=0; this.lvlEvery=Math.round(0.05*sr); this.out=[]; this.bl=Math.round(0.03*sr); this.buf=new Float32Array(this.bl); this.bi=0;
     // note length: full-band 3 ms envelope (its own fade time is subtracted); a strum ends 20 dB below its own peak, or when the next strum starts
     this.env=0; this.c=Math.exp(-1/(0.003*sr)); this.lag=Math.round(0.003*sr*Math.log(100)); this.track=false; this.tF=0; this.pk=0;
     this.pkWin=Math.round(0.05*sr); this.maxLen=Math.round(2*sr); this.drop=0.01;
@@ -424,8 +447,8 @@ class Det {
         this.since=0; this.oF=nf; this.win=this.measure; this.acc=0; this.n=0;
         this.track=true; this.tF=nf; this.pk=this.env;
       }
-      const ax=x<0?-x:x; if(ax>this.lvl) this.lvl=ax;
-      if(++this.lvlN>=this.lvlEvery){ out.push({type:'lvl',v:this.lvl}); this.lvl=0; this.lvlN=0; }
+      const ax=x<0?-x:x; if(ax>this.lvl) this.lvl=ax; if(this.fast>this.emax) this.emax=this.fast;
+      if(++this.lvlN>=this.lvlEvery){ out.push({type:'lvl',v:this.lvl,e:this.emax}); this.lvl=0; this.emax=0; this.lvlN=0; }
     }
     return out;
   }
@@ -442,7 +465,7 @@ class PocketOnset extends AudioWorkletProcessor{
 registerProcessor('pocket-onset',PocketOnset);`;
 
 /* ---------- Settings ---------- */
-const S = { bpm:96, pattern:'all', grid:2, countIn:1, accent:true, vol:0.6, trigDb:-42, latMs:0, tol:20, win:32, device:'' };
+const S = { bpm:96, pattern:'all', grid:2, countIn:1, accent:true, vol:0.6, trigDb:-42, latMs:0, tol:20, win:32, device:'', sink:'', cal:null, calPrev:null };
 try { Object.assign(S, JSON.parse(localStorage.getItem('pocket-meter') || '{}')); } catch(e) {}
 if (typeof S.countIn === 'boolean') S.countIn = S.countIn ? 1 : 0; // older saved setting
 const save = () => { try { localStorage.setItem('pocket-meter', JSON.stringify(S)); } catch(e) {} };
@@ -512,7 +535,8 @@ async function setupDetector(){
 }
 
 function onDet(m){
-  if (m.type === 'lvl'){ level = Math.max(level*0.6, m.v); return; }
+  if (m.type === 'lvl'){ level = Math.max(level*0.6, m.v); if (calRun && calRun.phase === 'noise') calRun.emax = Math.max(calRun.emax, m.e || 0); return; }
+  if (calRun){ if (m.type === 'hit' && calRun.phase === 'clicks') calRun.hits.push(m.frame/ctx.sampleRate); return; }
   if (m.type === 'hit') onHit(m.frame/ctx.sampleRate, m.rms, m.frame);
   if (m.type === 'end') onEnd(m);
 }
@@ -523,7 +547,7 @@ function click(t, kind){
   o.type = 'triangle'; o.frequency.value = f;
   const peak = (kind==='accent' ? 1 : 0.8);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(peak, t+0.002);
+  g.gain.linearRampToValueAtTime(peak, t+0.0003); // near-instant attack so the click's onset is exactly t, like the calibration click
   g.gain.exponentialRampToValueAtTime(0.0001, t+(kind==='back'?0.07:0.045));
   o.connect(g); g.connect(clickGain); o.start(t); o.stop(t+0.09);
 }
@@ -543,10 +567,12 @@ function schedule(){
   }
 }
 
-async function start(){
+// Opens the audio context, output device, mic and detector. Returns false (with a banner) if it can't.
+async function openAudio(){
   try {
     ctx = ctx || new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
     await ctx.resume();
+    await applySink();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomedia');
     // Reuse the open mic between Start/Stop so the browser asks only once per visit.
     const live = stream && stream.getAudioTracks().some(t => t.readyState === 'live');
@@ -556,11 +582,145 @@ async function start(){
   } catch(e){
     setBanner(e && e.message==='nomedia'
       ? 'This browser can’t open the microphone here. Download the file and open it directly in Chrome, Edge, Firefox or Safari.'
-      : 'The microphone was blocked. Allow mic access for this page in your browser’s address bar, then press Start again.', true);
-    return;
+      : 'The microphone was blocked. Allow mic access for this page in your browser’s address bar, then try again.', true);
+    return false;
   }
-  clickGain = clickGain || ctx.createGain(); clickGain.gain.value = S.vol; clickGain.connect(ctx.destination);
-  await setupDetector();
+  if (!clickGain){ clickGain = ctx.createGain(); clickGain.connect(ctx.destination); }
+  clickGain.gain.value = S.vol;
+  if (!detNode) await setupDetector();
+  listDevices();
+  return true;
+}
+
+function closeDetector(){
+  try { srcNode && srcNode.disconnect(); detNode && detNode.disconnect(); sinkGain && sinkGain.disconnect(); } catch(e) {}
+  srcNode = detNode = null; fallbackDet = null;
+}
+
+const canPickOutput = !!(window.AudioContext && 'setSinkId' in AudioContext.prototype);
+async function applySink(){
+  if (!canPickOutput || !ctx) return;
+  const want = S.sink || '';
+  if ((ctx.sinkId || '') === want) return;
+  try { await ctx.setSinkId(want); }
+  catch(e){ S.sink = ''; save(); $('sink').value = ''; setBanner('That output device isn’t available, so the click is using your default output.', true); }
+}
+
+/* ---------- Latency calibration ---------- */
+// The measured round trip (click scheduled → heard back through the mic) is exactly the delay a
+// perfectly timed strum shows, so it is subtracted from every strum as one fixed number.
+function setupKey(){ return (S.device || 'default') + '|' + (S.sink || 'default'); }
+function calValid(){
+  if (!S.cal || S.cal.key !== setupKey()) return false;
+  if (ctx && S.cal.sr && S.cal.sr !== ctx.sampleRate) return false;
+  return true;
+}
+let calRun = null, calBuf = null, startOutLat = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function calClick(t){
+  if (!calBuf || calBuf.sampleRate !== ctx.sampleRate){
+    const n = Math.round(ctx.sampleRate*0.012); calBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = calBuf.getChannelData(0); let seed = 12345;
+    for (let i=0;i<n;i++){ seed = (seed*1103515245+12345) % 2147483648; d[i] = (seed/1073741824-1) * Math.exp(-i/(ctx.sampleRate*0.0025)); }
+  }
+  const src = ctx.createBufferSource(), g = ctx.createGain();
+  src.buffer = calBuf; g.gain.value = Math.max(0.75, S.vol);
+  src.connect(g); g.connect(ctx.destination); src.start(t);
+}
+
+async function calibrate(){
+  if (calRun) return;
+  if (running) stop();
+  $('calBtn').disabled = true;
+  setCalStatus('Starting…', '', '');
+  if (!await openAudio()){ $('calBtn').disabled = false; renderCal(); return; }
+  calRun = {phase:'noise', emax:0, hits:[]};
+  try {
+    setCalStatus('Listening to the room…', '', 'Keep your strings muted.');
+    sendDet({trigDb:-90, refract:0.1});
+    await sleep(800);
+    const floorDb = 10*Math.log10(Math.max(calRun.emax, 1e-12));
+    if (floorDb > -24) throw new Error('The room is too loud to calibrate. Mute your strings and try again somewhere quieter.');
+    sendDet({trigDb: Math.min(-18, Math.max(-80, floorDb + 12))});
+    // Irregular spacing so room echoes or the metronome can’t line up with the wrong click.
+    const N = 14, sched = [];
+    let t = ctx.currentTime + 0.3;
+    for (let i=0;i<N;i++){ sched.push(t); calClick(t); t += 0.45 + ((i*7919)%11)/11*0.3; }
+    calRun.phase = 'clicks';
+    while (ctx.currentTime < t + 0.45){
+      const done = sched.filter(x => x < ctx.currentTime).length;
+      setCalStatus(`Measuring… click ${Math.min(done, N)} of ${N}`, '', '');
+      await sleep(120);
+    }
+    const lags = [];
+    for (const s0 of sched){
+      const h = calRun.hits.find(x => x >= s0 - 0.002 && x < s0 + 0.42);
+      if (h != null) lags.push((h - s0)*1000);
+    }
+    const sorted = [...lags].sort((a,b)=>a-b);
+    const med = sorted.length ? sorted[Math.floor(sorted.length/2)] : NaN;
+    const mad = sorted.length ? [...sorted.map(v=>Math.abs(v-med))].sort((a,b)=>a-b)[Math.floor(sorted.length/2)] : NaN;
+    const good = lags.filter(v => Math.abs(v - med) <= Math.max(1.5, 3*mad));
+    if (good.length < 8){
+      throw new Error(lags.length < 8
+        ? `Heard ${lags.length} of ${N} clicks. Turn the click volume up or move the mic closer to the speaker, then try again.`
+        : 'The clicks came back at uneven times. Make sure nothing else is playing, then try again.');
+    }
+    const ms = mean(good), spread = sd(good);
+    if (spread > 3) throw new Error(`The delay varied by ±${spread.toFixed(1)} ms between clicks, which is too unsteady to trust. Close other audio apps and try again. Bluetooth headphones often do this.`);
+    if (S.cal && S.cal.key === setupKey()) S.calPrev = {ms:S.cal.ms, when:S.cal.when};
+    else S.calPrev = null;
+    S.cal = {ms, sd:spread, n:good.length, when:Date.now(), key:setupKey(), sr:ctx.sampleRate};
+    S.latMs = 0; $('lat').value = 0;
+    save();
+  } catch(err){
+    renderCal(err.message || 'Calibration didn’t finish. Try again.');
+    return;
+  } finally {
+    calRun = null; closeDetector(); $('calBtn').disabled = false;
+  }
+  renderCal(); render();
+}
+
+function setCalStatus(main, cls, detail){
+  const st = $('calStatus'); st.textContent = main; st.className = cls || '';
+  $('calDetail').textContent = detail || '';
+}
+function ago(ms){
+  const m = Math.round(ms/60000);
+  if (m < 1) return 'just now'; if (m < 60) return `${m} min ago`;
+  const h = Math.round(m/60); if (h < 24) return `${h} hr ago`;
+  const d = Math.round(h/24); return `${d} day${d>1?'s':''} ago`;
+}
+function renderCal(error){
+  const chip = $('calChip');
+  if (error){ setCalStatus('Calibration failed', 'warn', error); }
+  else if (calValid()){
+    const c = S.cal;
+    let detail = `${c.ms.toFixed(1)} ms round trip, steady to ±${c.sd.toFixed(1)} ms · ${ago(Date.now()-c.when)}`;
+    if (S.calPrev){
+      const d = c.ms - S.calPrev.ms;
+      detail += Math.abs(d) < 1.5
+        ? `. Matches your previous calibration (${ago(Date.now()-S.calPrev.when)}).`
+        : `. That’s ${d>0?'+':'−'}${Math.abs(d).toFixed(1)} ms from your previous calibration (${ago(Date.now()-S.calPrev.when)}), so the delay is drifting on this setup.`;
+    }
+    setCalStatus('Calibrated', 'ok', detail);
+  } else if (S.cal){
+    setCalStatus('Recalibrate', 'warn', 'Your input, output or sample rate changed since you calibrated, so timing is using the browser’s estimate.');
+  } else {
+    setCalStatus('Not calibrated', 'warn', 'Timing is using the browser’s own delay estimate, which is often 10–40 ms off.');
+  }
+  const ok = calValid();
+  chip.textContent = ok ? `Calibrated · ${S.cal.ms.toFixed(0)} ms` : S.cal ? 'Recalibrate' : 'Not calibrated';
+  chip.className = 'chip calchip ' + (ok ? 'c-ok' : 'c-late');
+}
+
+async function start(){
+  if (calRun) return;
+  if (!await openAudio()) return;
+  startOutLat = ctx.outputLatency || 0; // snapshot: Chrome revises this estimate while running
+  renderCal();
   // Each Start begins a fresh take; data from the last take stays visible after Stop for review.
   hits = []; example = false;
   setBanner(null);
@@ -572,14 +732,12 @@ async function start(){
   running = true; schedule(); schedTimer = setInterval(schedule, 25);
   $('start').textContent = 'Stop'; $('start').dataset.on = 'true';
   try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
-  listDevices();
   render();
 }
 
 function stop(){
   running = false; clearInterval(schedTimer);
-  try { srcNode && srcNode.disconnect(); detNode && detNode.disconnect(); sinkGain && sinkGain.disconnect(); } catch(e) {}
-  srcNode = detNode = null; fallbackDet = null;
+  closeDetector();
   $('start').textContent = 'Start'; $('start').dataset.on = 'false';
   render();
   document.querySelectorAll('.light').forEach(l => l.classList.remove('on','silent'));
@@ -601,8 +759,8 @@ function onEnd(m){
 function applyEnd(h, m){ h.lenMs = (m.end - m.frame)/ctx.sampleRate*1000; h.cut = !!m.cut; }
 function onHit(t, rms, frame){
   if (!running || t < analyzeFrom) return;
-  const outLat = ctx.outputLatency || 0;
-  const ta = t - outLat - S.latMs/1000;
+  const delay = calValid() ? S.cal.ms/1000 : startOutLat;
+  const ta = t - delay - S.latMs/1000;
   const bd = 60/S.bpm;
   const beatsF = anchorBeat + (ta - anchorTime)/bd;
   const subF = beatsF*S.grid;
@@ -989,12 +1147,9 @@ document.addEventListener('keydown', e => {
 
 $('trig').addEventListener('input', e => { S.trigDb = +e.target.value; $('trigVal').textContent = fmt(S.trigDb,0)+' dB'; sendDet({trigDb:S.trigDb}); save(); });
 $('lat').addEventListener('change', e => { S.latMs = +e.target.value || 0; save(); });
-$('zero').onclick = () => {
-  if (example) return;
-  const b = mean(windowed().map(h=>h.off)); if (isNaN(b)) return;
-  S.latMs = Math.round(S.latMs + b); $('lat').value = S.latMs;
-  hits.forEach(h => h.off -= b); save(); render();
-};
+$('calBtn').onclick = calibrate;
+$('calChip').onclick = () => { $('calBox').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'center'}); $('calBtn').focus({preventScroll:true}); };
+$('sink').addEventListener('change', async e => { S.sink = e.target.value; save(); if (ctx) await applySink(); renderCal(); });
 $('tol').addEventListener('change', e => { S.tol = +e.target.value; save(); render(); });
 $('win').addEventListener('change', e => { S.win = +e.target.value; save(); render(); });
 $('vol').addEventListener('input', e => { S.vol = +e.target.value; if (clickGain) clickGain.gain.value = S.vol; save(); });
@@ -1002,7 +1157,7 @@ $('accent').addEventListener('change', e => { S.accent = e.target.checked; save(
 $('countin').addEventListener('change', e => { S.countIn = +e.target.value; save(); });
 $('reset').onclick = () => { hits = []; example = false; setBanner(null); render(); };
 $('device').addEventListener('change', async e => {
-  S.device = e.target.value; save();
+  S.device = e.target.value; save(); renderCal();
   const wasRunning = running; if (running) stop();
   if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (wasRunning) await start();
@@ -1016,6 +1171,13 @@ async function listDevices(){
     const def = document.createElement('option'); def.value = ''; def.textContent = 'Default microphone'; sel.appendChild(def);
     devs.forEach((d,i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `Input ${i+1}`; sel.appendChild(o); });
     sel.value = S.device || '';
+    if (canPickOutput){
+      const outs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== '');
+      const so = $('sink'); so.innerHTML = '';
+      const d0 = document.createElement('option'); d0.value = ''; d0.textContent = 'Default speakers or headphones'; so.appendChild(d0);
+      outs.forEach((d,i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `Output ${i+1}`; so.appendChild(o); });
+      so.value = S.sink || '';
+    }
   } catch(e) {}
 }
 
@@ -1029,6 +1191,8 @@ $('vol').value = S.vol; $('accent').checked = S.accent; $('countin').value = Str
 
 new ResizeObserver(() => { drawTiming(); drawVolume(); drawLength(); }).observe($('tchart'));
 if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawTiming(); drawVolume(); drawLength(); });
+$('sinkField').hidden = !canPickOutput;
+renderCal();
 render();
 requestAnimationFrame(loop);
 })();
