@@ -30,17 +30,17 @@ function calClick(t){
 
 // The caller stops the metronome first.
 export async function calibrate(){
-  if (session.calRun) return;
+  if (session.calibrationRun) return;
   $('calBtn').disabled = true;
   setCalStatus('Starting…', '', '');
   if (!await openAudio()){ $('calBtn').disabled = false; renderCal(); return; }
   const ctx = audio.ctx;
-  const calRun = session.calRun = {phase:'noise', emax:0, hits:[]};
+  const calRun = session.calibrationRun = {phase:'noise', peakEnergy:0, hits:[]};
   try {
     setCalStatus('Listening to the room…', '', 'Keep your strings muted.');
-    sendDet({trigDb:-90, refract:0.1});
+    sendDet({trigDb:-90, refractorySeconds:0.1});
     await sleep(800);
-    const floorDb = 10*Math.log10(Math.max(calRun.emax, 1e-12));
+    const floorDb = 10*Math.log10(Math.max(calRun.peakEnergy, 1e-12));
     if (floorDb > -24) throw new Error('The room is too loud to calibrate. Mute your strings and try again somewhere quieter.');
     sendDet({trigDb: Math.min(-18, Math.max(-80, floorDb + 12))});
     // Irregular spacing so room echoes or the metronome can’t line up with the wrong click.
@@ -78,7 +78,7 @@ export async function calibrate(){
     renderCal(err.message || 'Calibration didn’t finish. Try again.');
     return;
   } finally {
-    session.calRun = null; closeDetector(); $('calBtn').disabled = false;
+    session.calibrationRun = null; closeDetector(); $('calBtn').disabled = false;
   }
   renderCal(); render();
 }

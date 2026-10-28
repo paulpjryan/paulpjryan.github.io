@@ -9,7 +9,7 @@ export function makeExample(){
     const off = down ? (beat===4 ? -7 : 3) + gauss(r)*6 : 10+gauss(r)*9;
     const db = (down ? -18.5+gauss(r)*1.2 : -21.6+gauss(r)*2) + (back && down ? 1.8 : 0);
     const lenMs = down ? (back ? 118+gauss(r)*14 : 196+gauss(r)*18) : 142+gauss(r)*30;
-    out.push({ off, db, subIdx: i%2, beat, bn: Math.floor(i/2), bdMs: 625, slotMs: 312.5, lenMs, cut:false, down, grid:2 });
+    out.push({ offsetMs: off, levelDb: db, subdivision: i%2, beat, beatNumber: Math.floor(i/2), beatMs: 625, slotMs: 312.5, noteLengthMs: lenMs, rangIntoNext:false, isDownstroke: down, grid:2 });
   }
   return out;
 }

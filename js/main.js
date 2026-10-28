@@ -13,21 +13,21 @@ audio.onMessage = onDet;
 
 /* ---------- Visual loop: beat lights + input meter ---------- */
 function loop(){
-  if (session.running && audio.ctx){
+  if (session.isRunning && audio.ctx){
     const now = audio.ctx.currentTime - (audio.ctx.outputLatency||0);
-    while (session.visQueue.length && session.visQueue[0].t <= now){
-      const b = session.visQueue.shift();
+    while (session.beatLightQueue.length && session.beatLightQueue[0].time <= now){
+      const b = session.beatLightQueue.shift();
       document.querySelectorAll('.light').forEach(l => l.classList.remove('on','silent'));
-      const l = document.querySelector(`.light[data-b="${b.pos}"]`);
-      l.classList.add('on'); if (!b.play) l.classList.add('silent');
+      const l = document.querySelector(`.light[data-b="${b.beatIndex}"]`);
+      l.classList.add('on'); if (!b.isAudible) l.classList.add('silent');
     }
   }
-  const lvDb = 20*Math.log10(Math.max(session.level, 1e-6));
+  const lvDb = 20*Math.log10(Math.max(session.inputLevel, 1e-6));
   const pct = v => Math.max(0, Math.min(100, (v + 72)/72*100));
-  const fill = $('meterFill'); fill.style.width = (session.running ? pct(lvDb) : 0) + '%';
-  fill.classList.toggle('hot', session.running && lvDb > S.trigDb);
+  const fill = $('meterFill'); fill.style.width = (session.isRunning ? pct(lvDb) : 0) + '%';
+  fill.classList.toggle('hot', session.isRunning && lvDb > S.trigDb);
   $('meterThr').style.left = pct(S.trigDb) + '%';
-  session.level *= 0.92;
+  session.inputLevel *= 0.92;
   requestAnimationFrame(loop);
 }
 
@@ -57,14 +57,14 @@ document.querySelectorAll('[data-grid]').forEach(btn => btn.onclick = () => {
   save(); reanchor(); render();
 });
 
-$('start').onclick = () => session.running ? stop() : start();
+$('start').onclick = () => session.isRunning ? stop() : start();
 document.addEventListener('keydown', e => {
-  if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)){ e.preventDefault(); session.running ? stop() : start(); }
+  if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)){ e.preventDefault(); session.isRunning ? stop() : start(); }
 });
 
 $('trig').addEventListener('input', e => { S.trigDb = +e.target.value; $('trigVal').textContent = fmt(S.trigDb,0)+' dB'; sendDet({trigDb:S.trigDb}); save(); });
 $('lat').addEventListener('change', e => { S.latMs = +e.target.value || 0; save(); });
-$('calBtn').onclick = () => { if (session.running) stop(); calibrate(); };
+$('calBtn').onclick = () => { if (session.isRunning) stop(); calibrate(); };
 $('calChip').onclick = () => { $('calBox').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'center'}); $('calBtn').focus({preventScroll:true}); };
 $('sink').addEventListener('change', async e => { S.sink = e.target.value; save(); if (audio.ctx) await applySink(); renderCal(); });
 $('tol').addEventListener('change', e => { S.tol = +e.target.value; save(); render(); });
@@ -72,10 +72,10 @@ $('win').addEventListener('change', e => { S.win = +e.target.value; save(); rend
 $('vol').addEventListener('input', e => { S.vol = +e.target.value; if (audio.clickGain) audio.clickGain.gain.value = S.vol; save(); });
 $('accent').addEventListener('change', e => { S.accent = e.target.checked; save(); });
 $('countin').addEventListener('change', e => { S.countIn = +e.target.value; save(); });
-$('reset').onclick = () => { session.hits = []; session.example = false; setBanner(null); render(); };
+$('reset').onclick = () => { session.hits = []; session.isExample = false; setBanner(null); render(); };
 $('device').addEventListener('change', async e => {
   S.device = e.target.value; save(); renderCal();
-  const wasRunning = session.running; if (session.running) stop();
+  const wasRunning = session.isRunning; if (session.isRunning) stop();
   if (audio.stream){ audio.stream.getTracks().forEach(t => t.stop()); audio.stream = null; }
   if (wasRunning) await start();
 });

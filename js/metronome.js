@@ -28,32 +28,32 @@ function schedule(){
     else if (S.pattern==='all'){ play = true; kind = (pos===0 && S.accent) ? 'accent' : 'normal'; }
     else { play = pos===1 || pos===3; kind = 'back'; }
     if (play) click(nextBeatTime, kind);
-    session.visQueue.push({t:nextBeatTime, pos, play});
+    session.beatLightQueue.push({time:nextBeatTime, beatIndex:pos, isAudible:play});
     nextBeatTime += bd; beatNum++;
   }
 }
 
 export async function start(){
-  if (session.calRun) return;
+  if (session.calibrationRun) return;
   if (!await openAudio()) return;
-  session.startOutLat = audio.ctx.outputLatency || 0; // snapshot: Chrome revises this estimate while running
+  session.startOutputLatency = audio.ctx.outputLatency || 0; // snapshot: Chrome revises this estimate while running
   renderCal();
   // Each Start begins a fresh take; data from the last take stays visible after Stop for review.
-  session.hits = []; session.example = false;
+  session.hits = []; session.isExample = false;
   setBanner(null);
   const bd = 60/S.bpm;
   nextBeatTime = audio.ctx.currentTime + 0.25; beatNum = 0;
   session.anchorTime = nextBeatTime; session.anchorBeat = 0;
   session.analyzeFrom = nextBeatTime + 4*S.countIn*bd - bd/(2*S.grid);
-  session.visQueue = [];
-  session.running = true; schedule(); schedTimer = setInterval(schedule, 25);
+  session.beatLightQueue = [];
+  session.isRunning = true; schedule(); schedTimer = setInterval(schedule, 25);
   $('start').textContent = 'Stop'; $('start').dataset.on = 'true';
   try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
   render();
 }
 
 export function stop(){
-  session.running = false; clearInterval(schedTimer);
+  session.isRunning = false; clearInterval(schedTimer);
   closeDetector();
   $('start').textContent = 'Start'; $('start').dataset.on = 'false';
   render();
@@ -62,7 +62,7 @@ export function stop(){
 }
 
 export function reanchor(){
-  if (!session.running) return;
+  if (!session.isRunning) return;
   session.anchorTime = nextBeatTime; session.anchorBeat = beatNum;
-  sendDet({refract:refractFor()});
+  sendDet({refractorySeconds:refractFor()});
 }

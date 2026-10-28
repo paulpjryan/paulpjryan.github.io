@@ -15,8 +15,8 @@ export function drawNeedle(){
   const recent = session.hits.slice(-10);
   recent.forEach((h,i) => {
     const t = document.createElement('div'); t.className = 'tick' + (i===recent.length-1 ? ' last' : '');
-    t.style.left = pct(h.off)+'%';
-    if (i===recent.length-1) t.style.background = Math.abs(h.off)<=S.tol ? 'var(--ok)' : h.off>0 ? 'var(--late)' : 'var(--early)';
+    t.style.left = pct(h.offsetMs)+'%';
+    if (i===recent.length-1) t.style.background = Math.abs(h.offsetMs)<=S.tol ? 'var(--ok)' : h.offsetMs>0 ? 'var(--late)' : 'var(--early)';
     el.appendChild(t);
   });
 }
@@ -53,15 +53,15 @@ export function drawTiming(){
   const x = i => padL + 6 + (N - data.length + i)*step;
   // rolling mean
   g.strokeStyle = ink; g.globalAlpha = 0.45; g.lineWidth = 1.5; g.beginPath();
-  data.forEach((_,i) => { const s = data.slice(Math.max(0,i-7), i+1); const m = mean(s.map(q=>q.off)); i ? g.lineTo(x(i), y(m)) : g.moveTo(x(i), y(m)); });
+  data.forEach((_,i) => { const s = data.slice(Math.max(0,i-7), i+1); const m = mean(s.map(q=>q.offsetMs)); i ? g.lineTo(x(i), y(m)) : g.moveTo(x(i), y(m)); });
   g.stroke(); g.globalAlpha = 1;
   data.forEach((d,i) => {
-    const c = Math.abs(d.off)<=S.tol ? ok : d.off>0 ? late : early;
+    const c = Math.abs(d.offsetMs)<=S.tol ? ok : d.offsetMs>0 ? late : early;
     const last = i === data.length-1, r = last ? 5.5 : 4;
-    g.beginPath(); g.arc(x(i), y(d.off), r, 0, Math.PI*2);
-    if (d.down){ g.fillStyle = c; g.fill(); } else { g.strokeStyle = c; g.lineWidth = 2; g.stroke(); }
-    if (Math.abs(d.off) > R){ g.fillStyle = c; g.textAlign='center'; g.fillText(d.off>0?'▲':'▼', x(i), d.off>0 ? padT+2 : h-padB-2); }
-    if (last){ g.strokeStyle = ink; g.lineWidth = 1; g.beginPath(); g.arc(x(i), y(d.off), r+3, 0, Math.PI*2); g.stroke(); }
+    g.beginPath(); g.arc(x(i), y(d.offsetMs), r, 0, Math.PI*2);
+    if (d.isDownstroke){ g.fillStyle = c; g.fill(); } else { g.strokeStyle = c; g.lineWidth = 2; g.stroke(); }
+    if (Math.abs(d.offsetMs) > R){ g.fillStyle = c; g.textAlign='center'; g.fillText(d.offsetMs>0?'▲':'▼', x(i), d.offsetMs>0 ? padT+2 : h-padB-2); }
+    if (last){ g.strokeStyle = ink; g.lineWidth = 1; g.beginPath(); g.arc(x(i), y(d.offsetMs), r+3, 0, Math.PI*2); g.stroke(); }
   });
 }
 
@@ -77,12 +77,12 @@ export function drawVolume(){
   });
   const N = 64, data = session.hits.slice(-N);
   if (!data.length) return;
-  const m = mean(windowed().map(q=>q.db));
+  const m = mean(windowed().map(q=>q.levelDb));
   const step = (w-padL-padR-12)/(N-1), bw = Math.max(2, step*0.62);
   data.forEach((d,i) => {
     const xi = padL + 6 + (N - data.length + i)*step;
-    const dv = d.db - m, y0 = y(0), y1 = y(dv);
-    g.fillStyle = d.down ? ink : muted; g.globalAlpha = d.down ? 0.8 : 0.65;
+    const dv = d.levelDb - m, y0 = y(0), y1 = y(dv);
+    g.fillStyle = d.isDownstroke ? ink : muted; g.globalAlpha = d.isDownstroke ? 0.8 : 0.65;
     g.fillRect(xi - bw/2, Math.min(y0,y1), bw, Math.max(1, Math.abs(y1-y0)));
     g.globalAlpha = 1;
   });
@@ -104,8 +104,8 @@ export function drawLength(){
   data.forEach((d,i) => {
     const p = ringPct(d); if (isNaN(p)) return;
     const xi = padL + 6 + (N - data.length + i)*step;
-    g.fillStyle = d.down ? ink : muted;
-    g.globalAlpha = d.cut ? 0.25 : (d.down ? 0.8 : 0.65);
+    g.fillStyle = d.isDownstroke ? ink : muted;
+    g.globalAlpha = d.rangIntoNext ? 0.25 : (d.isDownstroke ? 0.8 : 0.65);
     g.fillRect(xi - bw/2, y(p), bw, y(0) - y(p));
     g.globalAlpha = 1;
   });

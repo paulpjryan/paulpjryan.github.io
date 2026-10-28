@@ -1,56 +1,62 @@
 // Onset detector, shared by the AudioWorklet and the ScriptProcessor fallback.
-export class Det {
-  constructor(sr){
-    this.sr=sr; this.hp=0; this.px=0; this.fast=0; this.slow=0; this.since=1e9;
-    this.refract=Math.round(sr*0.08); this.floor=Math.pow(10,-42/10); this.ratio=4;
-    this.a=Math.exp(-1/(0.0015*sr)); this.b=Math.exp(-1/(0.12*sr));
-    this.win=0; this.acc=0; this.n=0; this.oF=0; this.measure=Math.round(0.06*sr);
-    this.lvl=0; this.emax=0; this.lvlN=0; this.lvlEvery=Math.round(0.05*sr); this.out=[]; this.bl=Math.round(0.03*sr); this.buf=new Float32Array(this.bl); this.bi=0;
+export class OnsetDetector {
+  constructor(sampleRate){
+    this.sampleRate=sampleRate;
+    this.highpassed=0; this.previousSample=0;
+    this.fastEnergy=0; this.slowEnergy=0;
+    this.fastCoefficient=Math.exp(-1/(0.0015*sampleRate)); this.slowCoefficient=Math.exp(-1/(0.12*sampleRate));
+    this.framesSinceOnset=1e9; this.refractoryFrames=Math.round(sampleRate*0.08);
+    this.triggerEnergy=Math.pow(10,-42/10); this.onsetRatio=4;
+    this.onsetFrame=0; this.rmsFramesLeft=0; this.rmsSumOfSquares=0; this.rmsFrameCount=0; this.rmsWindowFrames=Math.round(0.06*sampleRate);
+    this.peakSample=0; this.peakEnergy=0; this.levelFrameCount=0; this.levelReportFrames=Math.round(0.05*sampleRate);
+    this.historyLength=Math.round(0.03*sampleRate); this.energyHistory=new Float32Array(this.historyLength); this.historyIndex=0;
+    this.messages=[];
     // note length: full-band 3 ms envelope (its own fade time is subtracted); a strum ends 20 dB below its own peak, or when the next strum starts
-    this.env=0; this.c=Math.exp(-1/(0.003*sr)); this.lag=Math.round(0.003*sr*Math.log(100)); this.track=false; this.tF=0; this.pk=0;
-    this.pkWin=Math.round(0.05*sr); this.maxLen=Math.round(2*sr); this.drop=0.01;
+    this.noteEnvelope=0; this.envelopeCoefficient=Math.exp(-1/(0.003*sampleRate)); this.envelopeLagFrames=Math.round(0.003*sampleRate*Math.log(100));
+    this.isTrackingNote=false; this.noteStartFrame=0; this.notePeak=0;
+    this.notePeakWindowFrames=Math.round(0.05*sampleRate); this.maxNoteFrames=Math.round(2*sampleRate); this.noteEndRatio=0.01;
   }
   set(o){
-    if(o.trigDb!=null) this.floor=Math.pow(10,o.trigDb/10);
-    if(o.refract!=null) this.refract=Math.round(this.sr*o.refract);
+    if(o.trigDb!=null) this.triggerEnergy=Math.pow(10,o.trigDb/10);
+    if(o.refractorySeconds!=null) this.refractoryFrames=Math.round(this.sampleRate*o.refractorySeconds);
   }
   run(ch, frame0){
-    const out=this.out; out.length=0;
+    const out=this.messages; out.length=0;
     for(let i=0;i<ch.length;i++){
       const x=ch[i];
-      this.hp=0.97*(this.hp+x-this.px); this.px=x;
-      const e=this.hp*this.hp;
-      this.fast=this.a*this.fast+(1-this.a)*e;
-      const prevSlow=this.slow;
-      this.slow=this.b*this.slow+(1-this.b)*e;
-      this.env=this.c*this.env+(1-this.c)*x*x;
+      this.highpassed=0.97*(this.highpassed+x-this.previousSample); this.previousSample=x;
+      const e=this.highpassed*this.highpassed;
+      this.fastEnergy=this.fastCoefficient*this.fastEnergy+(1-this.fastCoefficient)*e;
+      const prevSlow=this.slowEnergy;
+      this.slowEnergy=this.slowCoefficient*this.slowEnergy+(1-this.slowCoefficient)*e;
+      this.noteEnvelope=this.envelopeCoefficient*this.noteEnvelope+(1-this.envelopeCoefficient)*x*x;
       const f=frame0+i;
-      if(this.track){
-        const age=f-this.tF;
-        if(age<this.pkWin){ if(this.env>this.pk) this.pk=this.env; }
-        else if(this.env<Math.max(this.pk*this.drop,this.floor*0.25) || age>this.maxLen){
-          out.push({type:'end',frame:this.tF,end:Math.max(this.tF+1,f-this.lag),cut:false}); this.track=false;
+      if(this.isTrackingNote){
+        const age=f-this.noteStartFrame;
+        if(age<this.notePeakWindowFrames){ if(this.noteEnvelope>this.notePeak) this.notePeak=this.noteEnvelope; }
+        else if(this.noteEnvelope<Math.max(this.notePeak*this.noteEndRatio,this.triggerEnergy*0.25) || age>this.maxNoteFrames){
+          out.push({type:'end',frame:this.noteStartFrame,endFrame:Math.max(this.noteStartFrame+1,f-this.envelopeLagFrames),rangIntoNext:false}); this.isTrackingNote=false;
         }
       }
-      if(this.win>0){
-        this.acc+=x*x; this.n++; this.win--;
-        if(this.win===0) out.push({type:'hit',frame:this.oF,rms:Math.sqrt(this.acc/this.n)});
+      if(this.rmsFramesLeft>0){
+        this.rmsSumOfSquares+=x*x; this.rmsFrameCount++; this.rmsFramesLeft--;
+        if(this.rmsFramesLeft===0) out.push({type:'hit',frame:this.onsetFrame,rms:Math.sqrt(this.rmsSumOfSquares/this.rmsFrameCount)});
       }
-      this.since++;
-      this.buf[this.bi]=this.fast; this.bi=(this.bi+1)%this.bl;
-      if(this.since>this.refract && this.fast>this.floor && this.fast>prevSlow*this.ratio){
+      this.framesSinceOnset++;
+      this.energyHistory[this.historyIndex]=this.fastEnergy; this.historyIndex=(this.historyIndex+1)%this.historyLength;
+      if(this.framesSinceOnset>this.refractoryFrames && this.fastEnergy>this.triggerEnergy && this.fastEnergy>prevSlow*this.onsetRatio){
         // backtrack: find the quietest point in the last 30 ms, then the first doubling after it
-        const L=this.bl; let mn=Infinity, mi=0;
-        for(let k=0;k<L;k++){ const v=this.buf[(this.bi+k)%L]; if(v<mn){mn=v;mi=k;} }
-        let on=L-1; for(let k=mi;k<L;k++){ if(this.buf[(this.bi+k)%L]>mn*4){ on=k; break; } }
+        const L=this.historyLength; let mn=Infinity, mi=0;
+        for(let k=0;k<L;k++){ const v=this.energyHistory[(this.historyIndex+k)%L]; if(v<mn){mn=v;mi=k;} }
+        let on=L-1; for(let k=mi;k<L;k++){ if(this.energyHistory[(this.historyIndex+k)%L]>mn*4){ on=k; break; } }
         const nf=frame0+i-(L-1-on);
-        if(this.win>0 && this.n>0) out.push({type:'hit',frame:this.oF,rms:Math.sqrt(this.acc/this.n)});
-        if(this.track) out.push({type:'end',frame:this.tF,end:nf,cut:true});
-        this.since=0; this.oF=nf; this.win=this.measure; this.acc=0; this.n=0;
-        this.track=true; this.tF=nf; this.pk=this.env;
+        if(this.rmsFramesLeft>0 && this.rmsFrameCount>0) out.push({type:'hit',frame:this.onsetFrame,rms:Math.sqrt(this.rmsSumOfSquares/this.rmsFrameCount)});
+        if(this.isTrackingNote) out.push({type:'end',frame:this.noteStartFrame,endFrame:nf,rangIntoNext:true});
+        this.framesSinceOnset=0; this.onsetFrame=nf; this.rmsFramesLeft=this.rmsWindowFrames; this.rmsSumOfSquares=0; this.rmsFrameCount=0;
+        this.isTrackingNote=true; this.noteStartFrame=nf; this.notePeak=this.noteEnvelope;
       }
-      const ax=x<0?-x:x; if(ax>this.lvl) this.lvl=ax; if(this.fast>this.emax) this.emax=this.fast;
-      if(++this.lvlN>=this.lvlEvery){ out.push({type:'lvl',v:this.lvl,e:this.emax}); this.lvl=0; this.emax=0; this.lvlN=0; }
+      const ax=x<0?-x:x; if(ax>this.peakSample) this.peakSample=ax; if(this.fastEnergy>this.peakEnergy) this.peakEnergy=this.fastEnergy;
+      if(++this.levelFrameCount>=this.levelReportFrames){ out.push({type:'level',peakSample:this.peakSample,peakEnergy:this.peakEnergy}); this.peakSample=0; this.peakEnergy=0; this.levelFrameCount=0; }
     }
     return out;
   }

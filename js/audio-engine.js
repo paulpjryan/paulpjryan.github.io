@@ -1,40 +1,40 @@
 import { S, save } from './settings.js';
 import { $, setBanner } from './dom.js';
-import { Det } from './onset-detector.js';
+import { OnsetDetector } from './onset-detector.js';
 
 // onMessage receives every detector message; main.js wires it up.
-export const audio = { ctx:null, stream:null, srcNode:null, detNode:null, sinkGain:null, clickGain:null, fallbackDet:null, onMessage:null };
+export const audio = { ctx:null, stream:null, sourceNode:null, detectorNode:null, silentOutput:null, clickGain:null, fallbackDetector:null, onMessage:null };
 
 const WORKLET_URL = new URL('./onset-worklet.js', import.meta.url);
 let workletLoaded = false;
 
 export function refractFor(){ const sub = 60/S.bpm/S.grid; return Math.max(0.04, Math.min(0.6*sub, 0.15)); }
-export function sendDet(o){ if(audio.detNode && audio.detNode.port) audio.detNode.port.postMessage(o); else if(audio.fallbackDet) audio.fallbackDet.set(o); }
+export function sendDet(o){ if(audio.detectorNode && audio.detectorNode.port) audio.detectorNode.port.postMessage(o); else if(audio.fallbackDetector) audio.fallbackDetector.set(o); }
 
 async function setupDetector(){
   const ctx = audio.ctx;
-  audio.srcNode = ctx.createMediaStreamSource(audio.stream);
-  audio.sinkGain = ctx.createGain(); audio.sinkGain.gain.value = 0; audio.sinkGain.connect(ctx.destination);
+  audio.sourceNode = ctx.createMediaStreamSource(audio.stream);
+  audio.silentOutput = ctx.createGain(); audio.silentOutput.gain.value = 0; audio.silentOutput.connect(ctx.destination);
   if (ctx.audioWorklet){
     try {
       if (!workletLoaded){ await ctx.audioWorklet.addModule(WORKLET_URL); workletLoaded = true; }
-      audio.detNode = new AudioWorkletNode(ctx, 'pocket-onset', {numberOfInputs:1, numberOfOutputs:1, channelCount:1, channelCountMode:'explicit'});
-      audio.detNode.port.onmessage = e => audio.onMessage(e.data);
-      audio.srcNode.connect(audio.detNode); audio.detNode.connect(audio.sinkGain);
-      sendDet({trigDb:S.trigDb, refract:refractFor()});
+      audio.detectorNode = new AudioWorkletNode(ctx, 'pocket-onset', {numberOfInputs:1, numberOfOutputs:1, channelCount:1, channelCountMode:'explicit'});
+      audio.detectorNode.port.onmessage = e => audio.onMessage(e.data);
+      audio.sourceNode.connect(audio.detectorNode); audio.detectorNode.connect(audio.silentOutput);
+      sendDet({trigDb:S.trigDb, refractorySeconds:refractFor()});
       return;
-    } catch(e){ audio.detNode = null; }
+    } catch(e){ audio.detectorNode = null; }
   }
   // Fallback: ScriptProcessor (less precise timing)
-  audio.fallbackDet = new Det(ctx.sampleRate);
+  audio.fallbackDetector = new OnsetDetector(ctx.sampleRate);
   const sp = ctx.createScriptProcessor(1024,1,1);
   sp.onaudioprocess = ev => {
     const ch = ev.inputBuffer.getChannelData(0);
     const frame0 = Math.round(ctx.currentTime*ctx.sampleRate) - 2048;
-    const o = audio.fallbackDet.run(ch, frame0); for (const m of o) audio.onMessage(m);
+    const o = audio.fallbackDetector.run(ch, frame0); for (const m of o) audio.onMessage(m);
   };
-  audio.srcNode.connect(sp); sp.connect(audio.sinkGain); audio.detNode = sp;
-  sendDet({trigDb:S.trigDb, refract:refractFor()});
+  audio.sourceNode.connect(sp); sp.connect(audio.silentOutput); audio.detectorNode = sp;
+  sendDet({trigDb:S.trigDb, refractorySeconds:refractFor()});
   setBanner('Your browser lacks AudioWorklet, so timing uses a slower fallback and may be off by a few milliseconds.', true);
 }
 
@@ -58,14 +58,14 @@ export async function openAudio(){
   }
   if (!audio.clickGain){ audio.clickGain = audio.ctx.createGain(); audio.clickGain.connect(audio.ctx.destination); }
   audio.clickGain.gain.value = S.vol;
-  if (!audio.detNode) await setupDetector();
+  if (!audio.detectorNode) await setupDetector();
   listDevices();
   return true;
 }
 
 export function closeDetector(){
-  try { audio.srcNode && audio.srcNode.disconnect(); audio.detNode && audio.detNode.disconnect(); audio.sinkGain && audio.sinkGain.disconnect(); } catch(e) {}
-  audio.srcNode = audio.detNode = null; audio.fallbackDet = null;
+  try { audio.sourceNode && audio.sourceNode.disconnect(); audio.detectorNode && audio.detectorNode.disconnect(); audio.silentOutput && audio.silentOutput.disconnect(); } catch(e) {}
+  audio.sourceNode = audio.detectorNode = null; audio.fallbackDetector = null;
 }
 
 export const canPickOutput = !!(window.AudioContext && 'setSinkId' in AudioContext.prototype);
