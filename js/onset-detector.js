@@ -1,7 +1,10 @@
+const HIGHPASS_CUTOFF_HZ = 230;
+
 // Onset detector, shared by the AudioWorklet and the ScriptProcessor fallback.
 export class OnsetDetector {
   constructor(sampleRate) {
     this.sampleRate = sampleRate;
+    this.highpassCoefficient = Math.exp((-2 * Math.PI * HIGHPASS_CUTOFF_HZ) / sampleRate);
     this.highpassed = 0;
     this.previousSample = 0;
     this.fastEnergy = 0;
@@ -17,7 +20,6 @@ export class OnsetDetector {
     this.rmsSumOfSquares = 0;
     this.rmsFrameCount = 0;
     this.rmsWindowFrames = Math.round(0.06 * sampleRate);
-    this.peakSample = 0;
     this.peakEnergy = 0;
     this.levelFrameCount = 0;
     this.levelReportFrames = Math.round(0.05 * sampleRate);
@@ -46,7 +48,7 @@ export class OnsetDetector {
     out.length = 0;
     for (let i = 0; i < ch.length; i++) {
       const x = ch[i];
-      this.highpassed = 0.97 * (this.highpassed + x - this.previousSample);
+      this.highpassed = this.highpassCoefficient * (this.highpassed + x - this.previousSample);
       this.previousSample = x;
       const e = this.highpassed * this.highpassed;
       this.fastEnergy = this.fastCoefficient * this.fastEnergy + (1 - this.fastCoefficient) * e;
@@ -128,12 +130,9 @@ export class OnsetDetector {
         this.noteStartFrame = nf;
         this.notePeak = this.noteEnvelope;
       }
-      const ax = x < 0 ? -x : x;
-      if (ax > this.peakSample) this.peakSample = ax;
       if (this.fastEnergy > this.peakEnergy) this.peakEnergy = this.fastEnergy;
       if (++this.levelFrameCount >= this.levelReportFrames) {
-        out.push({ type: 'level', peakSample: this.peakSample, peakEnergy: this.peakEnergy });
-        this.peakSample = 0;
+        out.push({ type: 'level', peakEnergy: this.peakEnergy });
         this.peakEnergy = 0;
         this.levelFrameCount = 0;
       }

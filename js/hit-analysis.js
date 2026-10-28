@@ -7,7 +7,7 @@ import { render } from './readouts.js';
 export function onDet(m) {
   const calRun = session.calibrationRun;
   if (m.type === 'level') {
-    session.inputLevel = Math.max(session.inputLevel * 0.6, m.peakSample);
+    session.inputLevel = Math.max(session.inputLevel * 0.6 ** 2, m.peakEnergy);
     if (calRun && calRun.phase === 'noise')
       calRun.peakEnergy = Math.max(calRun.peakEnergy, m.peakEnergy || 0);
     return;
@@ -37,9 +37,10 @@ function applyEnd(h, m) {
   h.rangIntoNext = !!m.rangIntoNext;
 }
 function onHit(t, rms, frame) {
-  if (!session.isRunning || t < session.analyzeFrom) return;
-  const delay = calValid() ? S.cal.ms / 1000 : session.startOutputLatency;
+  if (!session.isRunning) return;
+  const delay = calValid() ? S.cal.ms / 1000 : session.estimatedLatency;
   const ta = t - delay - S.latMs / 1000;
+  if (ta < session.analyzeFrom) return;
   const bd = 60 / S.bpm;
   const beatsF = session.anchorBeat + (ta - session.anchorTime) / bd;
   const subF = beatsF * S.grid;

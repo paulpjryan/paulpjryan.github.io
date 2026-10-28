@@ -7,7 +7,7 @@ export const session = {
   isRunning: false,
   inputLevel: 0,
   calibrationRun: null,
-  startOutputLatency: 0,
+  estimatedLatency: 0,
   anchorTime: 0,
   anchorBeat: 0,
   analyzeFrom: 0,

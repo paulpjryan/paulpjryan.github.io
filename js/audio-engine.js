@@ -17,6 +17,13 @@ export const audio = {
 const WORKLET_URL = new URL('./onset-worklet.js', import.meta.url);
 let workletLoaded = false;
 
+// The browser's own estimate of click-out plus mic-in delay, used until the user calibrates.
+export function estimateLatency() {
+  const track = audio.stream && audio.stream.getAudioTracks()[0];
+  const inputLatency = (track && track.getSettings().latency) || 0;
+  return (audio.ctx.baseLatency || 0) + (audio.ctx.outputLatency || 0) + inputLatency;
+}
+
 export function refractFor() {
   const sub = 60 / S.bpm / S.grid;
   return Math.max(0.04, Math.min(0.6 * sub, 0.15));

@@ -1,7 +1,14 @@
 import { S } from './settings.js';
 import { $, setBanner } from './dom.js';
 import { session } from './session.js';
-import { audio, openAudio, closeDetector, sendDet, refractFor } from './audio-engine.js';
+import {
+  audio,
+  openAudio,
+  closeDetector,
+  sendDet,
+  refractFor,
+  estimateLatency,
+} from './audio-engine.js';
 import { renderCal } from './calibration.js';
 import { render } from './readouts.js';
 
@@ -52,7 +59,7 @@ function schedule() {
 export async function start() {
   if (session.calibrationRun) return;
   if (!(await openAudio())) return;
-  session.startOutputLatency = audio.ctx.outputLatency || 0; // snapshot: Chrome revises this estimate while running
+  session.estimatedLatency = estimateLatency(); // snapshot: Chrome revises its estimates while running
   renderCal();
   // Each Start begins a fresh take; data from the last take stays visible after Stop for review.
   session.hits = [];

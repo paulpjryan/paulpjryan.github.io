@@ -23,13 +23,14 @@ function loop() {
       if (!b.isAudible) l.classList.add('silent');
     }
   }
-  const lvDb = 20 * Math.log10(Math.max(session.inputLevel, 1e-6));
+  // inputLevel is the energy the detector triggers on, so the meter and trigger line share one scale.
+  const lvDb = 10 * Math.log10(Math.max(session.inputLevel, 1e-12));
   const pct = (v) => Math.max(0, Math.min(100, ((v + 72) / 72) * 100));
   const fill = $('meterFill');
   fill.style.width = (session.isRunning ? pct(lvDb) : 0) + '%';
   fill.classList.toggle('hot', session.isRunning && lvDb > S.trigDb);
   $('meterThr').style.left = pct(S.trigDb) + '%';
-  session.inputLevel *= 0.92;
+  session.inputLevel *= 0.92 ** 2;
   requestAnimationFrame(loop);
 }
 
