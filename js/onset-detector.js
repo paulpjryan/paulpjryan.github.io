@@ -25,6 +25,7 @@ export class OnsetDetector {
     this.levelReportFrames = Math.round(0.05 * sampleRate);
     this.historyLength = Math.round(0.03 * sampleRate);
     this.energyHistory = new Float32Array(this.historyLength);
+    this.sortedHistory = new Float32Array(this.historyLength);
     this.historyIndex = 0;
     this.messages = [];
     // note length: full-band 3 ms envelope (its own fade time is subtracted); a strum ends 20 dB below its own peak, or when the next strum starts
@@ -94,24 +95,16 @@ export class OnsetDetector {
         this.fastEnergy > this.triggerEnergy &&
         this.fastEnergy > prevSlow * this.onsetRatio
       ) {
-        // backtrack: find the quietest point in the last 30 ms, then the first doubling after it
+        // backtrack: walk back through the unbroken rise above 4x the last 30 ms's median level.
+        // Measuring from the median, not the quietest instant, keeps a stray noise flicker
+        // before the attack from being taken as the onset.
         const L = this.historyLength;
-        let mn = Infinity,
-          mi = 0;
-        for (let k = 0; k < L; k++) {
-          const v = this.energyHistory[(this.historyIndex + k) % L];
-          if (v < mn) {
-            mn = v;
-            mi = k;
-          }
-        }
+        this.sortedHistory.set(this.energyHistory);
+        this.sortedHistory.sort();
+        const riseThreshold = this.sortedHistory[L >> 1] * 4;
         let on = L - 1;
-        for (let k = mi; k < L; k++) {
-          if (this.energyHistory[(this.historyIndex + k) % L] > mn * 4) {
-            on = k;
-            break;
-          }
-        }
+        while (on > 0 && this.energyHistory[(this.historyIndex + on - 1) % L] > riseThreshold) on--;
+        if (on === 0) on = L - 1;
         const nf = frame0 + i - (L - 1 - on);
         if (this.rmsFramesLeft > 0 && this.rmsFrameCount > 0)
           out.push({
