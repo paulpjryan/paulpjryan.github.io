@@ -13,6 +13,9 @@ function setupKey() {
 export function calValid() {
   if (!S.cal || S.cal.key !== setupKey()) return false;
   if (audio.ctx && S.cal.sr && S.cal.sr !== audio.ctx.sampleRate) return false;
+  // The worklet and ScriptProcessor detectors place onsets differently, so each needs its own calibration.
+  if (audio.detectorPath && S.cal.detectorPath && S.cal.detectorPath !== audio.detectorPath)
+    return false;
   return true;
 }
 let calBuf = null;
@@ -111,6 +114,7 @@ export async function calibrate() {
       when: Date.now(),
       key: setupKey(),
       sr: ctx.sampleRate,
+      detectorPath: audio.detectorPath,
     };
     S.latMs = 0;
     $('lat').value = 0;
@@ -161,7 +165,7 @@ export function renderCal(error) {
     setCalStatus(
       'Recalibrate',
       'warn',
-      'Your input, output or sample rate changed since you calibrated, so timing is using the browser’s estimate.',
+      'Your input, output, sample rate or audio engine changed since you calibrated, so timing is using the browser’s estimate.',
     );
   } else {
     setCalStatus(

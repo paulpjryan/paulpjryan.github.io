@@ -1,8 +1,8 @@
 import { S, save } from './settings.js';
 import { $, setBanner } from './dom.js';
 import { session } from './session.js';
-import { audio, applySink, sendDet, canPickOutput } from './audio-engine.js';
-import { start, stop, reanchor } from './metronome.js';
+import { audio, applySink, sendDet, updateRefractory, canPickOutput } from './audio-engine.js';
+import { start, stop, syncClickSettings, onBeatAnnounced } from './metronome.js';
 import { calibrate, renderCal } from './calibration.js';
 import { onDet } from './hit-analysis.js';
 import { fmt } from './stats.js';
@@ -10,6 +10,7 @@ import { render } from './readouts.js';
 import { drawTiming, drawVolume, drawLength } from './charts.js';
 
 audio.onMessage = onDet;
+audio.onClickMessage = onBeatAnnounced;
 
 /* ---------- Visual loop: beat lights + input meter ---------- */
 function loop() {
@@ -41,7 +42,8 @@ function setBpm(v) {
   $('bpm').value = v;
   $('bpmRange').value = v;
   save();
-  reanchor();
+  syncClickSettings();
+  updateRefractory();
 }
 $('bpm').addEventListener('change', (e) => setBpm(e.target.value));
 $('bpmRange').addEventListener('input', (e) => setBpm(e.target.value));
@@ -64,6 +66,7 @@ function setPattern(p) {
   $('patBack').setAttribute('aria-pressed', p === 'back');
   markLights();
   save();
+  syncClickSettings();
 }
 $('patAll').onclick = () => setPattern('all');
 $('patBack').onclick = () => setPattern('back');
@@ -82,7 +85,7 @@ document.querySelectorAll('[data-grid]').forEach(
         .querySelectorAll('[data-grid]')
         .forEach((b) => b.setAttribute('aria-pressed', b === btn));
       save();
-      reanchor();
+      updateRefractory();
       render();
     }),
 );
@@ -140,10 +143,12 @@ $('vol').addEventListener('input', (e) => {
 $('accent').addEventListener('change', (e) => {
   S.accent = e.target.checked;
   save();
+  syncClickSettings();
 });
 $('countin').addEventListener('change', (e) => {
   S.countIn = +e.target.value;
   save();
+  syncClickSettings();
 });
 $('reset').onclick = () => {
   session.hits = [];

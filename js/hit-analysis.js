@@ -2,7 +2,7 @@ import { S } from './settings.js';
 import { session } from './session.js';
 import { audio } from './audio-engine.js';
 import { calValid } from './calibration.js';
-import { render } from './readouts.js';
+import { requestRender } from './readouts.js';
 
 export function onDet(m) {
   const calRun = session.calibrationRun;
@@ -26,7 +26,7 @@ function onEnd(m) {
   const h = session.hits.find((x) => x.frame === m.frame);
   if (h) {
     applyEnd(h, m);
-    render();
+    requestRender();
   } else {
     pendingEnds.set(m.frame, m);
     if (pendingEnds.size > 20) pendingEnds.delete(pendingEnds.keys().next().value);
@@ -36,13 +36,22 @@ function applyEnd(h, m) {
   h.noteLengthMs = ((m.endFrame - m.frame) / audio.ctx.sampleRate) * 1000;
   h.rangIntoNext = !!m.rangIntoNext;
 }
+// Places a moment against the beats the click track actually played, so a tempo change mid-take
+// grades each strum against the beat it really followed.
+function beatPosition(time) {
+  const beats = session.beatTimes;
+  let i = beats.length - 1;
+  while (i > 0 && beats[i] > time) i--;
+  const nextBeat = i < beats.length - 1 ? beats[i + 1] : beats[i] + 60 / S.bpm;
+  const beatSeconds = nextBeat - beats[i];
+  return { beats: i + (time - beats[i]) / beatSeconds, beatSeconds };
+}
 function onHit(t, rms, frame) {
-  if (!session.isRunning) return;
+  if (!session.isRunning || !session.beatTimes.length) return;
   const delay = calValid() ? S.cal.ms / 1000 : session.estimatedLatency;
   const ta = t - delay - S.latMs / 1000;
   if (ta < session.analyzeFrom) return;
-  const bd = 60 / S.bpm;
-  const beatsF = session.anchorBeat + (ta - session.anchorTime) / bd;
+  const { beats: beatsF, beatSeconds: bd } = beatPosition(ta);
   const subF = beatsF * S.grid;
   const n = Math.round(subF);
   const off = ((subF - n) / S.grid) * bd * 1000;
@@ -69,5 +78,5 @@ function onHit(t, rms, frame) {
   }
   session.hits.push(h);
   if (session.hits.length > 4000) session.hits.shift();
-  render();
+  requestRender();
 }

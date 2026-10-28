@@ -1,21 +1,36 @@
 import { S, save } from './settings.js';
 import { $, setBanner } from './dom.js';
 import { OnsetDetector } from './onset-detector.js';
+import { ClickTrack } from './click-track.js';
 
-// onMessage receives every detector message; main.js wires it up.
+// onMessage receives every detector message and onClickMessage every click track message;
+// main.js wires them up.
 export const audio = {
   ctx: null,
   stream: null,
   sourceNode: null,
   detectorNode: null,
+  detectorPath: null,
   silentOutput: null,
   clickGain: null,
+  clickNode: null,
   fallbackDetector: null,
+  fallbackClickTrack: null,
   onMessage: null,
+  onClickMessage: null,
 };
 
-const WORKLET_URL = new URL('./onset-worklet.js', import.meta.url);
+const WORKLET_URL = new URL('./worklet-processors.js', import.meta.url);
 let workletLoaded = false;
+
+async function loadWorklet() {
+  if (!audio.ctx.audioWorklet) return false;
+  if (!workletLoaded) {
+    await audio.ctx.audioWorklet.addModule(WORKLET_URL);
+    workletLoaded = true;
+  }
+  return true;
+}
 
 // The browser's own estimate of click-out plus mic-in delay, used until the user calibrates.
 export function estimateLatency() {
@@ -32,6 +47,13 @@ export function sendDet(o) {
   if (audio.detectorNode && audio.detectorNode.port) audio.detectorNode.port.postMessage(o);
   else if (audio.fallbackDetector) audio.fallbackDetector.set(o);
 }
+export function updateRefractory() {
+  sendDet({ refractorySeconds: refractFor() });
+}
+export function sendClick(message) {
+  if (audio.clickNode && audio.clickNode.port) audio.clickNode.port.postMessage(message);
+  else if (audio.fallbackClickTrack) audio.fallbackClickTrack.set(message);
+}
 
 async function setupDetector() {
   const ctx = audio.ctx;
@@ -39,12 +61,8 @@ async function setupDetector() {
   audio.silentOutput = ctx.createGain();
   audio.silentOutput.gain.value = 0;
   audio.silentOutput.connect(ctx.destination);
-  if (ctx.audioWorklet) {
-    try {
-      if (!workletLoaded) {
-        await ctx.audioWorklet.addModule(WORKLET_URL);
-        workletLoaded = true;
-      }
+  try {
+    if (await loadWorklet()) {
       audio.detectorNode = new AudioWorkletNode(ctx, 'pocket-onset', {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -54,11 +72,12 @@ async function setupDetector() {
       audio.detectorNode.port.onmessage = (e) => audio.onMessage(e.data);
       audio.sourceNode.connect(audio.detectorNode);
       audio.detectorNode.connect(audio.silentOutput);
+      audio.detectorPath = 'worklet';
       sendDet({ trigDb: S.trigDb, refractorySeconds: refractFor() });
       return;
-    } catch (e) {
-      audio.detectorNode = null;
     }
+  } catch (e) {
+    audio.detectorNode = null;
   }
   // Fallback: ScriptProcessor (less precise timing)
   audio.fallbackDetector = new OnsetDetector(ctx.sampleRate);
@@ -72,11 +91,40 @@ async function setupDetector() {
   audio.sourceNode.connect(sp);
   sp.connect(audio.silentOutput);
   audio.detectorNode = sp;
+  audio.detectorPath = 'fallback';
   sendDet({ trigDb: S.trigDb, refractorySeconds: refractFor() });
   setBanner(
     'Your browser lacks AudioWorklet, so timing uses a slower fallback and may be off by a few milliseconds.',
     true,
   );
+}
+
+async function setupClickTrack() {
+  const ctx = audio.ctx;
+  try {
+    if (await loadWorklet()) {
+      audio.clickNode = new AudioWorkletNode(ctx, 'pocket-click', {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
+      });
+      audio.clickNode.port.onmessage = (e) => audio.onClickMessage(e.data);
+      audio.clickNode.connect(audio.clickGain);
+      return;
+    }
+  } catch (e) {
+    audio.clickNode = null;
+  }
+  // Fallback: ScriptProcessor (less precise timing)
+  audio.fallbackClickTrack = new ClickTrack(ctx.sampleRate);
+  const sp = ctx.createScriptProcessor(1024, 1, 1);
+  sp.onaudioprocess = (ev) => {
+    const frame0 = Math.round(ev.playbackTime * ctx.sampleRate);
+    const o = audio.fallbackClickTrack.run(ev.outputBuffer.getChannelData(0), frame0);
+    for (const m of o) audio.onClickMessage(m);
+  };
+  sp.connect(audio.clickGain);
+  audio.clickNode = sp;
 }
 
 // Opens the audio context, output device, mic and detector. Returns false (with a banner) if it can't.
@@ -113,6 +161,7 @@ export async function openAudio() {
     audio.clickGain.connect(audio.ctx.destination);
   }
   audio.clickGain.gain.value = S.vol;
+  if (!audio.clickNode) await setupClickTrack();
   if (!audio.detectorNode) await setupDetector();
   listDevices();
   return true;

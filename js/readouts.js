@@ -22,6 +22,18 @@ function setChip(el, text, cls) {
   el.className = 'chip ' + cls;
 }
 
+let isRenderQueued = false;
+
+// Detector events can arrive several times a frame at fast tempos; draw at most once per frame.
+export function requestRender() {
+  if (isRenderQueued) return;
+  isRenderQueued = true;
+  requestAnimationFrame(() => {
+    isRenderQueued = false;
+    render();
+  });
+}
+
 export function render() {
   const w = windowed();
   const offs = w.map((h) => h.offsetMs),

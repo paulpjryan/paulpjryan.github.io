@@ -8,8 +8,8 @@ export const session = {
   inputLevel: 0,
   calibrationRun: null,
   estimatedLatency: 0,
-  anchorTime: 0,
-  anchorBeat: 0,
+  takeId: 0,
+  beatTimes: [],
   analyzeFrom: 0,
   beatLightQueue: [],
 };

@@ -1,4 +1,5 @@
 import { OnsetDetector } from './onset-detector.js';
+import { ClickTrack } from './click-track.js';
 
 class PocketOnset extends AudioWorkletProcessor {
   constructor() {
@@ -16,3 +17,17 @@ class PocketOnset extends AudioWorkletProcessor {
   }
 }
 registerProcessor('pocket-onset', PocketOnset);
+
+class PocketClick extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.clickTrack = new ClickTrack(sampleRate);
+    this.port.onmessage = (e) => this.clickTrack.set(e.data);
+  }
+  process(inputs, outputs) {
+    const o = this.clickTrack.run(outputs[0][0], currentFrame);
+    for (let k = 0; k < o.length; k++) this.port.postMessage(o[k]);
+    return true;
+  }
+}
+registerProcessor('pocket-click', PocketClick);

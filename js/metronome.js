@@ -1,59 +1,25 @@
 import { S } from './settings.js';
 import { $, setBanner } from './dom.js';
 import { session } from './session.js';
-import {
-  audio,
-  openAudio,
-  closeDetector,
-  sendDet,
-  refractFor,
-  estimateLatency,
-} from './audio-engine.js';
+import { audio, openAudio, closeDetector, sendClick, estimateLatency } from './audio-engine.js';
 import { renderCal } from './calibration.js';
 import { render } from './readouts.js';
 
-let schedTimer = null,
-  nextBeatTime = 0,
-  beatNum = 0,
-  wakeLock = null;
+let wakeLock = null;
 
-function click(t, kind) {
-  const o = audio.ctx.createOscillator(),
-    g = audio.ctx.createGain();
-  const f = kind === 'accent' ? 1760 : kind === 'back' ? 1180 : 980;
-  o.type = 'triangle';
-  o.frequency.value = f;
-  const peak = kind === 'accent' ? 1 : 0.8;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(peak, t + 0.0003); // near-instant attack so the click's onset is exactly t, like the calibration click
-  g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'back' ? 0.07 : 0.045));
-  o.connect(g);
-  g.connect(audio.clickGain);
-  o.start(t);
-  o.stop(t + 0.09);
+function clickSettings() {
+  return { bpm: S.bpm, countIn: S.countIn, pattern: S.pattern, accent: S.accent };
 }
 
-function schedule() {
-  const bd = 60 / S.bpm;
-  while (nextBeatTime < audio.ctx.currentTime + 0.12) {
-    const pos = beatNum % 4;
-    const inCount = beatNum < 4 * S.countIn;
-    let play, kind;
-    if (inCount) {
-      play = true;
-      kind = pos === 0 ? 'accent' : 'normal';
-    } else if (S.pattern === 'all') {
-      play = true;
-      kind = pos === 0 && S.accent ? 'accent' : 'normal';
-    } else {
-      play = pos === 1 || pos === 3;
-      kind = 'back';
-    }
-    if (play) click(nextBeatTime, kind);
-    session.beatLightQueue.push({ time: nextBeatTime, beatIndex: pos, isAudible: play });
-    nextBeatTime += bd;
-    beatNum++;
-  }
+export function syncClickSettings() {
+  sendClick({ type: 'settings', settings: clickSettings() });
+}
+
+// The click track announces each beat one beat ahead; a message from an earlier take is ignored.
+export function onBeatAnnounced(m) {
+  if (!session.isRunning || m.type !== 'beat' || m.takeId !== session.takeId) return;
+  session.beatTimes[m.beatNumber] = m.time;
+  session.beatLightQueue.push({ time: m.time, beatIndex: m.beatIndex, isAudible: m.isAudible });
 }
 
 export async function start() {
@@ -66,15 +32,18 @@ export async function start() {
   session.isExample = false;
   setBanner(null);
   const bd = 60 / S.bpm;
-  nextBeatTime = audio.ctx.currentTime + 0.25;
-  beatNum = 0;
-  session.anchorTime = nextBeatTime;
-  session.anchorBeat = 0;
-  session.analyzeFrom = nextBeatTime + 4 * S.countIn * bd - bd / (2 * S.grid);
+  const firstBeatTime = audio.ctx.currentTime + 0.25;
+  session.analyzeFrom = firstBeatTime + 4 * S.countIn * bd - bd / (2 * S.grid);
+  session.beatTimes = [];
   session.beatLightQueue = [];
+  session.takeId++;
   session.isRunning = true;
-  schedule();
-  schedTimer = setInterval(schedule, 25);
+  sendClick({
+    type: 'start',
+    takeId: session.takeId,
+    startFrame: firstBeatTime * audio.ctx.sampleRate,
+    settings: clickSettings(),
+  });
   $('start').textContent = 'Stop';
   $('start').dataset.on = 'true';
   try {
@@ -85,7 +54,7 @@ export async function start() {
 
 export function stop() {
   session.isRunning = false;
-  clearInterval(schedTimer);
+  sendClick({ type: 'stop' });
   closeDetector();
   $('start').textContent = 'Start';
   $('start').dataset.on = 'false';
@@ -95,11 +64,4 @@ export function stop() {
     wakeLock && wakeLock.release();
   } catch (e) {}
   wakeLock = null;
-}
-
-export function reanchor() {
-  if (!session.isRunning) return;
-  session.anchorTime = nextBeatTime;
-  session.anchorBeat = beatNum;
-  sendDet({ refractorySeconds: refractFor() });
 }
