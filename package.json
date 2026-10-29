@@ -2,8 +2,8 @@
   "name": "pocket-meter",
   "private": true,
   "scripts": {
-    "format": "prettier --write index.html css js",
-    "format:check": "prettier --check index.html css js"
+    "format": "prettier --write index.html rhythm",
+    "format:check": "prettier --check index.html rhythm"
   },
   "devDependencies": {
     "prettier": "3.9.10"
